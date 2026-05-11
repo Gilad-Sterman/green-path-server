@@ -1,0 +1,113 @@
+import pool from '../../db/client.js';
+
+export const createFactoryWithManager = async (factoryData, managerData) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { name, company_id_number, address, geofence_center, geofence_radius_meters } = factoryData;
+    const { rows: factoryRows } = await client.query(
+      `INSERT INTO factories (name, company_id_number, address, geofence_center, geofence_radius_meters)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [name, company_id_number, address, geofence_center || null, geofence_radius_meters || null]
+    );
+    const factory = factoryRows[0];
+
+    const { full_name, phone_number } = managerData;
+    const { rows: userRows } = await client.query(
+      `INSERT INTO users (phone_number, full_name, role, factory_id)
+       VALUES ($1, $2, 'manager', $3)
+       RETURNING id, created_at, factory_id, phone_number, full_name, role, is_active`,
+      [phone_number, full_name, factory.id]
+    );
+    const manager = userRows[0];
+
+    await client.query('COMMIT');
+    return { factory, manager };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+export const listFactories = async ({ status, limit = 50, offset = 0 }) => {
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+
+  if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const { rows } = await pool.query(
+    `SELECT f.*,
+            COUNT(u.id) FILTER (WHERE u.is_active = true) AS active_user_count
+     FROM factories f
+     LEFT JOIN users u ON u.factory_id = f.id
+     ${where}
+     GROUP BY f.id
+     ORDER BY f.created_at DESC
+     LIMIT $${idx++} OFFSET $${idx}`,
+    [...params, limit, offset]
+  );
+  return rows;
+};
+
+export const getFactoryById = async (id) => {
+  const { rows } = await pool.query(
+    `SELECT f.*,
+            COUNT(u.id) FILTER (WHERE u.is_active = true) AS active_user_count
+     FROM factories f
+     LEFT JOIN users u ON u.factory_id = f.id
+     WHERE f.id = $1
+     GROUP BY f.id`,
+    [id]
+  );
+  return rows[0] || null;
+};
+
+export const getFactoryByCompanyId = async (company_id_number) => {
+  const { rows } = await pool.query(
+    `SELECT id FROM factories WHERE company_id_number = $1`,
+    [company_id_number]
+  );
+  return rows[0] || null;
+};
+
+export const insertFactory = async ({ name, company_id_number, address, geofence_center, geofence_radius_meters }) => {
+  const { rows } = await pool.query(
+    `INSERT INTO factories (name, company_id_number, address, geofence_center, geofence_radius_meters)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [name, company_id_number, address, geofence_center || null, geofence_radius_meters || null]
+  );
+  return rows[0];
+};
+
+export const updateFactoryById = async (id, fields) => {
+  const setClauses = [];
+  const params = [];
+  let idx = 1;
+
+  if (fields.name                  !== undefined) { setClauses.push(`name                  = $${idx++}`); params.push(fields.name); }
+  if (fields.address               !== undefined) { setClauses.push(`address               = $${idx++}`); params.push(fields.address); }
+  if (fields.company_id_number     !== undefined) { setClauses.push(`company_id_number     = $${idx++}`); params.push(fields.company_id_number); }
+  if (fields.geofence_center       !== undefined) { setClauses.push(`geofence_center       = $${idx++}`); params.push(fields.geofence_center); }
+  if (fields.geofence_radius_meters !== undefined) { setClauses.push(`geofence_radius_meters = $${idx++}`); params.push(fields.geofence_radius_meters); }
+  if (fields.status                !== undefined) { setClauses.push(`status                = $${idx++}`); params.push(fields.status); }
+
+  if (!setClauses.length) return null;
+
+  params.push(id);
+  const { rows } = await pool.query(
+    `UPDATE factories
+     SET ${setClauses.join(', ')}, updated_at = now()
+     WHERE id = $${idx}
+     RETURNING *`,
+    params
+  );
+  return rows[0] || null;
+};
