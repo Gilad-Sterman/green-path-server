@@ -44,8 +44,7 @@ export const sendOtp = async (phone_number) => {
 
   await cleanupOldOtps(phone_number);
 
-  const bypassEnabled =
-    process.env.OTP_BYPASS === 'true' && process.env.NODE_ENV !== 'production';
+  const bypassEnabled = process.env.OTP_BYPASS === 'true';
 
   const code = bypassEnabled ? '000000' : generateOtpCode();
   const expires_at = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
