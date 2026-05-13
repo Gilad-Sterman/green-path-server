@@ -11,6 +11,12 @@ import usersRoutes from './modules/users/routes.js';
 import factoriesRoutes from './modules/factories/routes.js';
 import suppliersRoutes from './modules/suppliers/routes.js';
 import customersRoutes from './modules/customers/routes.js';
+import productsRoutes from './modules/products/routes.js';
+import documentsRoutes from './modules/documents/routes.js';
+import intakesRoutes from './modules/intakes/routes.js';
+import batchesRoutes from './modules/batches/routes.js';
+import shipmentsRoutes from './modules/shipments/routes.js';
+import creditsRoutes from './modules/credits/routes.js';
 import { requestLogger } from './middleware/requestLogger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -34,6 +40,12 @@ app.use('/api/users', usersRoutes);
 app.use('/api/factories', factoriesRoutes);
 app.use('/api/suppliers', suppliersRoutes);
 app.use('/api/customers', customersRoutes);
+app.use('/api/products',  productsRoutes);
+app.use('/api/documents', documentsRoutes);
+app.use('/api/intakes',   intakesRoutes);
+app.use('/api/batches',   batchesRoutes);
+app.use('/api/shipments', shipmentsRoutes);
+app.use('/api/credits',   creditsRoutes);
 
 // SPA fallback — serve index.html for any non-API route
 app.get('/{*path}', (req, res) => {
