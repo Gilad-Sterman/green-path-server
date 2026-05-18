@@ -1,0 +1,88 @@
+import pool from '../../db/client.js';
+
+export const listFlags = async ({ factory_id, status, severity, entity_type, limit = 50, offset = 0 }) => {
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+
+  if (factory_id  !== undefined) { conditions.push(`f.factory_id  = $${idx++}`); params.push(factory_id);  }
+  if (status      !== undefined) { conditions.push(`f.status      = $${idx++}`); params.push(status);      }
+  if (severity    !== undefined) { conditions.push(`f.severity    = $${idx++}`); params.push(severity);    }
+  if (entity_type !== undefined) { conditions.push(`f.entity_type = $${idx++}`); params.push(entity_type); }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const { rows } = await pool.query(
+    `SELECT f.*, u.full_name AS resolved_by_name
+     FROM flags f
+     LEFT JOIN users u ON u.id = f.resolved_by
+     ${where}
+     ORDER BY
+       CASE f.severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
+       f.created_at DESC
+     LIMIT $${idx++} OFFSET $${idx}`,
+    [...params, limit, offset]
+  );
+  return rows;
+};
+
+export const getFlagById = async (id) => {
+  const { rows } = await pool.query(
+    `SELECT f.*, u.full_name AS resolved_by_name
+     FROM flags f
+     LEFT JOIN users u ON u.id = f.resolved_by
+     WHERE f.id = $1`,
+    [id]
+  );
+  return rows[0] || null;
+};
+
+export const getFlagCountByStatus = async (factory_id) => {
+  const { rows } = await pool.query(
+    `SELECT status, COUNT(*)::int AS count
+     FROM flags
+     WHERE factory_id = $1
+     GROUP BY status`,
+    [factory_id]
+  );
+  return rows;
+};
+
+export const getFlagCountByStatusPlatform = async () => {
+  const { rows } = await pool.query(
+    `SELECT status, COUNT(*)::int AS count FROM flags GROUP BY status`
+  );
+  return rows;
+};
+
+export const resolveFlagById = async (id, { resolution, resolution_note, resolved_by }) => {
+  const { rows } = await pool.query(
+    `UPDATE flags
+     SET status          = 'resolved',
+         resolution      = $1,
+         resolution_note = $2,
+         resolved_by     = $3,
+         resolved_at     = now(),
+         updated_at      = now()
+     WHERE id = $4
+     RETURNING *`,
+    [resolution, resolution_note || null, resolved_by, id]
+  );
+  return rows[0] || null;
+};
+
+export const dismissFlagById = async (id, { resolution_note, resolved_by }) => {
+  const { rows } = await pool.query(
+    `UPDATE flags
+     SET status          = 'dismissed',
+         resolution      = 'dismissed',
+         resolution_note = $1,
+         resolved_by     = $2,
+         resolved_at     = now(),
+         updated_at      = now()
+     WHERE id = $3
+     RETURNING *`,
+    [resolution_note || null, resolved_by, id]
+  );
+  return rows[0] || null;
+};

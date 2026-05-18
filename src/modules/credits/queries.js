@@ -41,3 +41,20 @@ export const getCreditsSummaryByFactory = async (factory_id) => {
     remaining_balance_kg: parseFloat(row.total_eligible_input_kg) - parseFloat(row.total_credits_kg),
   };
 };
+
+export const getCreditsSummaryPlatform = async () => {
+  const { rows } = await pool.query(
+    `SELECT
+       COALESCE(SUM(eligible_output_kg), 0)                                         AS total_credits_kg,
+       COALESCE(SUM(eligible_output_kg) FILTER (WHERE kind = 'operational'),  0)    AS operational_kg,
+       COALESCE(SUM(eligible_output_kg) FILTER (WHERE kind = 'retroactive'),  0)    AS retroactive_kg,
+       COUNT(*)                                                                      AS total_count,
+       (SELECT COALESCE(SUM(eligible_weight_kg), 0) FROM raw_material_intakes)      AS total_eligible_input_kg
+     FROM credits_ledger`
+  );
+  const row = rows[0];
+  return {
+    ...row,
+    remaining_balance_kg: parseFloat(row.total_eligible_input_kg) - parseFloat(row.total_credits_kg),
+  };
+};

@@ -105,6 +105,7 @@ export const createIntake = async (reqUser, body) => {
     data_entry_profile,
     location_status,
     notes,
+    created_by: reqUser.user_id,
   });
 };
 

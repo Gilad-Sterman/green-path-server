@@ -17,9 +17,11 @@ export const listIntakes = async ({
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await pool.query(
-    `SELECT rmi.*, s.name AS supplier_name
+    `SELECT rmi.*, s.name AS supplier_name,
+            u.full_name AS created_by_name
      FROM raw_material_intakes rmi
      JOIN suppliers s ON s.id = rmi.supplier_id
+     LEFT JOIN users u ON u.id = rmi.created_by
      ${where}
      ORDER BY rmi.intake_date DESC, rmi.created_at DESC
      LIMIT $${idx++} OFFSET $${idx}`,
@@ -30,9 +32,11 @@ export const listIntakes = async ({
 
 export const getIntakeById = async (id) => {
   const { rows } = await pool.query(
-    `SELECT rmi.*, s.name AS supplier_name
+    `SELECT rmi.*, s.name AS supplier_name,
+            u.full_name AS created_by_name
      FROM raw_material_intakes rmi
      JOIN suppliers s ON s.id = rmi.supplier_id
+     LEFT JOIN users u ON u.id = rmi.created_by
      WHERE rmi.id = $1`,
     [id]
   );
@@ -51,19 +55,20 @@ export const checkDuplicateDeliveryNote = async (factory_id, supplier_id, delive
 export const insertIntake = async ({
   factory_id, supplier_id, material_type, material_source, material_status,
   net_weight_kg, eligible_input_percent, intake_date, delivery_note_number,
-  data_entry_profile, location_status, notes,
+  data_entry_profile, location_status, notes, created_by,
 }) => {
   const { rows } = await pool.query(
     `INSERT INTO raw_material_intakes
        (factory_id, supplier_id, material_type, material_source, material_status,
         net_weight_kg, eligible_input_percent, intake_date, delivery_note_number,
-        data_entry_profile, location_status, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        data_entry_profile, location_status, notes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      RETURNING *`,
     [
       factory_id, supplier_id, material_type, material_source, material_status,
       net_weight_kg, eligible_input_percent ?? 100, intake_date, delivery_note_number,
       data_entry_profile || null, location_status || null, notes || null,
+      created_by || null,
     ]
   );
   return rows[0];

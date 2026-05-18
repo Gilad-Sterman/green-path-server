@@ -139,18 +139,6 @@ export const createShipmentTransaction = async (shipmentData, items) => {
     const totalOutput = parseFloat(outputRow.total_output);
 
     if (totalOutput + eligible_output_kg > totalInput) {
-      // Insert a flag before rolling back so it persists
-      await client.query('SAVEPOINT before_flag');
-      try {
-        await client.query(
-          `INSERT INTO flags (factory_id, entity_type, entity_id, reason, severity)
-           VALUES ($1, 'shipment', $2, 'mass-balance-exceeded', 'critical')`,
-          [shipmentData.factory_id, shipment.id]
-        );
-      } catch (_) {
-        await client.query('ROLLBACK TO before_flag');
-      }
-
       const overage = (totalOutput + eligible_output_kg - totalInput).toFixed(2);
       throw Object.assign(
         new Error(
@@ -158,7 +146,12 @@ export const createShipmentTransaction = async (shipmentData, items) => {
           `Total eligible input: ${totalInput} kg, Total credits issued: ${totalOutput} kg, ` +
           `This shipment: ${eligible_output_kg} kg.`
         ),
-        { status: 422, code: 'mass-balance-exceeded' }
+        {
+          status:         422,
+          code:           'mass-balance-exceeded',
+          _flagFactoryId: shipmentData.factory_id,
+          _flagEntityId:  shipment.id,
+        }
       );
     }
 
@@ -183,6 +176,15 @@ export const createShipmentTransaction = async (shipmentData, items) => {
     return { shipment, credit };
   } catch (err) {
     await client.query('ROLLBACK');
+    if (err._flagFactoryId && err._flagEntityId) {
+      try {
+        await pool.query(
+          `INSERT INTO flags (factory_id, entity_type, entity_id, reason, severity)
+           VALUES ($1, 'shipment', $2, 'mass-balance-exceeded', 'critical')`,
+          [err._flagFactoryId, err._flagEntityId]
+        );
+      } catch (_) {}
+    }
     throw err;
   } finally {
     client.release();

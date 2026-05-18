@@ -1,4 +1,4 @@
-import { listCredits, getCreditsSummaryByFactory } from './queries.js';
+import { listCredits, getCreditsSummaryByFactory, getCreditsSummaryPlatform } from './queries.js';
 
 const badReq = (msg) => Object.assign(new Error(msg), { status: 400 });
 
@@ -21,6 +21,6 @@ export const getCredits = async (reqUser, query) => {
 
 export const getCreditsSummary = async (reqUser, query) => {
   const factory_id = resolveFactoryId(reqUser, query.factory_id);
-  if (!factory_id) throw badReq('factory_id is required.');
+  if (!factory_id) return getCreditsSummaryPlatform();
   return getCreditsSummaryByFactory(factory_id);
 };
