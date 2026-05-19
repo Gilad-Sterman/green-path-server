@@ -18,6 +18,7 @@ import batchesRoutes from './modules/batches/routes.js';
 import shipmentsRoutes from './modules/shipments/routes.js';
 import creditsRoutes from './modules/credits/routes.js';
 import flagsRoutes   from './modules/flags/routes.js';
+import reportsRoutes from './modules/reports/routes.js';
 import { requestLogger } from './middleware/requestLogger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -48,6 +49,7 @@ app.use('/api/batches',   batchesRoutes);
 app.use('/api/shipments', shipmentsRoutes);
 app.use('/api/credits',   creditsRoutes);
 app.use('/api/flags',     flagsRoutes);
+app.use('/api/reports',   reportsRoutes);
 
 // SPA fallback — serve index.html for any non-API route
 app.get('/{*path}', (req, res) => {
@@ -60,13 +62,13 @@ const checkEnv = (key) => (process.env[key] ? '✓' : '✗ NOT SET');
 
 const logServicesStatus = async () => {
   const services = [
-    { name: 'PostgreSQL (DATABASE_URL)', status: null },
-    { name: 'Supabase Storage  (SUPABASE_URL)', status: checkEnv('SUPABASE_URL') },
-    { name: 'Supabase Storage  (SERVICE_ROLE_KEY)', status: checkEnv('SUPABASE_SERVICE_ROLE_KEY') },
-    { name: 'JWT               (JWT_SECRET)', status: checkEnv('JWT_SECRET') },
-    { name: 'JWT               (REFRESH_TOKEN_SECRET)', status: checkEnv('REFRESH_TOKEN_SECRET') },
-    { name: 'Twilio OTP        (TWILIO_ACCOUNT_SID)', status: checkEnv('TWILIO_ACCOUNT_SID') },
-    { name: 'OCR               (AZURE_OCR_KEY)', status: checkEnv('AZURE_OCR_KEY') },
+    { name: 'PostgreSQL', status: null },
+    { name: 'Supabase Storage', status: checkEnv('SUPABASE_URL') },
+    { name: 'Supabase Storage', status: checkEnv('SUPABASE_SERVICE_ROLE_KEY') },
+    { name: 'JWT', status: checkEnv('JWT_SECRET') },
+    { name: 'JWT', status: checkEnv('REFRESH_TOKEN_SECRET') },
+    { name: 'Twilio OTP', status: checkEnv('TWILIO_ACCOUNT_SID') },
+    { name: 'OCR', status: checkEnv('AZURE_OCR_KEY') },
   ];
 
   try {

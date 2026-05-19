@@ -34,6 +34,17 @@ export const uploadDocument = async (req, res, next) => {
   }
 };
 
+// POST /api/documents/analyze
+export const analyzeDocument = async (req, res, next) => {
+  try {
+    const result = await documentsService.analyzeDocumentOnly(req.file);
+    return success(res, result);
+  } catch (err) {
+    if (err.status) return error(res, err.code || 'ocr-error', err.message, err.status);
+    next(err);
+  }
+};
+
 // PATCH /api/documents/:id/approve
 export const approveDocument = async (req, res, next) => {
   try {

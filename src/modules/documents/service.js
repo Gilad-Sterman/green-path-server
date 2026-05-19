@@ -2,6 +2,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { listDocuments, getDocumentById, insertDocument, updateDocumentById } from './queries.js';
 import { uploadFile, getSignedUrl, getSignedUrls } from '../../utils/storage.js';
+import { analyzeDocument as runOcr } from '../../services/ocr.js';
 
 const ALLOWED_TYPES = ['delivery_note', 'invoice_in', 'invoice_out', 'lab_test', 'retro_invoice', 'other'];
 const ALLOWED_MIME  = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -96,6 +97,15 @@ export const approveDocument = async (reqUser, id, body) => {
     status:      'approved',
     review_note: body.review_note || null,
   });
+};
+
+export const analyzeDocumentOnly = async (file) => {
+  if (!file) throw badReq('No file provided.');
+  if (file.size > MAX_BYTES) throw badReq('File exceeds maximum size of 30 MB.');
+  if (!ALLOWED_MIME.includes(file.mimetype)) {
+    throw badReq(`Unsupported file type. Allowed: ${ALLOWED_MIME.join(', ')}`);
+  }
+  return runOcr(file.buffer, file.mimetype);
 };
 
 export const rejectDocument = async (reqUser, id, body) => {

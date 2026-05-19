@@ -14,6 +14,9 @@ const anyStaff       = requireRole('employee', 'manager', 'internal_admin');
 router.get('/',    authenticate, anyStaff, documentsController.listDocuments);
 router.get('/:id', authenticate, anyStaff, documentsController.getDocument);
 
+// Analyze only — run OCR and return fields without saving a document record
+router.post('/analyze', authenticate, anyStaff, upload.single('file'), documentsController.analyzeDocument);
+
 // Upload — all staff can upload (employees upload delivery notes in the field)
 router.post('/', authenticate, anyStaff, upload.single('file'), documentsController.uploadDocument);
 
