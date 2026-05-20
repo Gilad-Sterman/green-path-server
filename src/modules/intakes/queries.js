@@ -58,12 +58,18 @@ export const insertIntake = async ({
   data_entry_profile, location_status, notes, created_by,
 }) => {
   const { rows } = await pool.query(
-    `INSERT INTO raw_material_intakes
-       (factory_id, supplier_id, material_type, material_source, material_status,
-        net_weight_kg, eligible_input_percent, intake_date, delivery_note_number,
-        data_entry_profile, location_status, notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-     RETURNING *`,
+    `WITH ins AS (
+       INSERT INTO raw_material_intakes
+         (factory_id, supplier_id, material_type, material_source, material_status,
+          net_weight_kg, eligible_input_percent, intake_date, delivery_note_number,
+          data_entry_profile, location_status, notes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       RETURNING *
+     )
+     SELECT ins.*, s.name AS supplier_name, u.full_name AS created_by_name
+     FROM ins
+     JOIN suppliers s ON s.id = ins.supplier_id
+     LEFT JOIN users u ON u.id = ins.created_by`,
     [
       factory_id, supplier_id, material_type, material_source, material_status,
       net_weight_kg, eligible_input_percent ?? 100, intake_date, delivery_note_number,
@@ -93,10 +99,15 @@ export const updateIntakeById = async (id, fields) => {
 
   params.push(id);
   const { rows } = await pool.query(
-    `UPDATE raw_material_intakes
-     SET ${setClauses.join(', ')}, updated_at = now()
-     WHERE id = $${idx}
-     RETURNING *`,
+    `WITH upd AS (
+       UPDATE raw_material_intakes
+       SET ${setClauses.join(', ')}, updated_at = now()
+       WHERE id = $${idx}
+       RETURNING *
+     )
+     SELECT upd.*, s.name AS supplier_name
+     FROM upd
+     JOIN suppliers s ON s.id = upd.supplier_id`,
     params
   );
   return rows[0] || null;

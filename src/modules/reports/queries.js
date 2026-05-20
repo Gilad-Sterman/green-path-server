@@ -26,7 +26,7 @@ export const getReportSummary = async ({ factory_id, from, to }) => {
 
   const iConds = []; const iParams = []; let iIdx = 1;
   if (factory_id) { iConds.push(`rmi.factory_id = $${iIdx++}`); iParams.push(factory_id); }
-  iIdx = applyDateRange('rmi', 'created_at', from, to, iConds, iParams, iIdx);
+  iIdx = applyDateRange('rmi', 'intake_date', from, to, iConds, iParams, iIdx);
   const iWhere = iConds.length ? `WHERE ${iConds.join(' AND ')}` : '';
 
   const { rows: [intakes] } = await pool.query(
@@ -40,7 +40,7 @@ export const getReportSummary = async ({ factory_id, from, to }) => {
 
   const sConds = []; const sParams = []; let sIdx = 1;
   if (factory_id) { sConds.push(`s.factory_id = $${sIdx++}`); sParams.push(factory_id); }
-  sIdx = applyDateRange('s', 'created_at', from, to, sConds, sParams, sIdx);
+  sIdx = applyDateRange('s', 'shipment_date', from, to, sConds, sParams, sIdx);
   const sWhere = sConds.length ? `WHERE ${sConds.join(' AND ')}` : '';
 
   const { rows: [shipments] } = await pool.query(
@@ -59,22 +59,24 @@ export const getReportSummary = async ({ factory_id, from, to }) => {
 // ── 2. Monthly credits trend ──────────────────────────────────────────────────
 export const getReportMonthly = async ({ factory_id, from, to }) => {
   const conditions = []; const params = []; let idx = 1;
-  if (factory_id) { conditions.push(`factory_id = $${idx++}`); params.push(factory_id); }
-  if (from) { conditions.push(`created_at >= $${idx++}`); params.push(from); }
-  if (to)   { conditions.push(`created_at <= $${idx++}`); params.push(to); }
+  if (factory_id) { conditions.push(`cl.factory_id = $${idx++}`); params.push(factory_id); }
+  // Use shipment_date when the credit comes from a shipment, else fall back to cl.created_at
+  if (from) { conditions.push(`COALESCE(s.shipment_date, cl.created_at::date) >= $${idx++}`); params.push(from); }
+  if (to)   { conditions.push(`COALESCE(s.shipment_date, cl.created_at::date) <= $${idx++}`); params.push(to); }
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await pool.query(
     `SELECT
-       TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM')                          AS month,
-       COALESCE(SUM(eligible_output_kg), 0)                                         AS total_kg,
-       COALESCE(SUM(eligible_output_kg) FILTER (WHERE kind = 'operational'),  0)    AS operational_kg,
-       COALESCE(SUM(eligible_output_kg) FILTER (WHERE kind = 'retroactive'),  0)    AS retroactive_kg,
-       COUNT(*)::int                                                                 AS count
-     FROM credits_ledger
+       TO_CHAR(DATE_TRUNC('month', COALESCE(s.shipment_date, cl.created_at::date)), 'YYYY-MM') AS month,
+       COALESCE(SUM(cl.eligible_output_kg), 0)                                                 AS total_kg,
+       COALESCE(SUM(cl.eligible_output_kg) FILTER (WHERE cl.kind = 'operational'),  0)         AS operational_kg,
+       COALESCE(SUM(cl.eligible_output_kg) FILTER (WHERE cl.kind = 'retroactive'),  0)         AS retroactive_kg,
+       COUNT(*)::int                                                                            AS count
+     FROM credits_ledger cl
+     LEFT JOIN shipments s ON s.id = cl.source_id AND cl.source_type = 'shipment'
      ${where}
-     GROUP BY DATE_TRUNC('month', created_at)
-     ORDER BY DATE_TRUNC('month', created_at) DESC
+     GROUP BY DATE_TRUNC('month', COALESCE(s.shipment_date, cl.created_at::date))
+     ORDER BY DATE_TRUNC('month', COALESCE(s.shipment_date, cl.created_at::date)) DESC
      LIMIT 24`,
     params
   );
@@ -85,8 +87,8 @@ export const getReportMonthly = async ({ factory_id, from, to }) => {
 export const getReportIntakesByType = async ({ factory_id, from, to }) => {
   const conditions = []; const params = []; let idx = 1;
   if (factory_id) { conditions.push(`factory_id = $${idx++}`); params.push(factory_id); }
-  if (from) { conditions.push(`created_at >= $${idx++}`); params.push(from); }
-  if (to)   { conditions.push(`created_at <= $${idx++}`); params.push(to); }
+  if (from) { conditions.push(`intake_date >= $${idx++}`); params.push(from); }
+  if (to)   { conditions.push(`intake_date <= $${idx++}`); params.push(to); }
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await pool.query(
