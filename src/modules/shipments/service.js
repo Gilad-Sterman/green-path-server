@@ -3,6 +3,7 @@ import {
   updateShipmentById, createShipmentTransaction,
 } from './queries.js';
 import { getBatchById } from '../batches/queries.js';
+import { logAudit } from '../../services/audit.js';
 
 const STATUSES = ['created', 'shipped', 'delivered', 'cancelled'];
 const STATUS_TRANSITIONS = { created: ['shipped', 'cancelled'], shipped: ['delivered', 'cancelled'], delivered: [], cancelled: [] };
@@ -42,7 +43,7 @@ export const getShipment = async (reqUser, id) => {
   return shipment;
 };
 
-export const createShipment = async (reqUser, body) => {
+export const createShipment = async (reqUser, body, meta = {}) => {
   const { customer_id, shipment_date, destination_address, notes, items } = body;
 
   if (!customer_id)            throw badReq('customer_id is required.');
@@ -81,13 +82,26 @@ export const createShipment = async (reqUser, body) => {
     resolvedItems.push({ batch_id: item.batch_id, weight_kg: itemWeight });
   }
 
-  return createShipmentTransaction(
+  const result = await createShipmentTransaction(
     { factory_id, customer_id, shipment_date, destination_address: destination_address.trim(), notes },
     resolvedItems
   );
+
+  logAudit({
+    action:      'shipment.created',
+    entity_type: 'shipment',
+    entity_id:   result.shipment.id,
+    factory_id:  result.shipment.factory_id,
+    user_id:     reqUser.user_id,
+    new_value:   result.shipment,
+    ip_address:  meta.ip,
+    user_agent:  meta.userAgent,
+  });
+
+  return result;
 };
 
-export const updateShipmentStatus = async (reqUser, id, body) => {
+export const updateShipmentStatus = async (reqUser, id, body, meta = {}) => {
   const shipment = await getShipmentById(id);
   if (!shipment) throw notFound();
   assertFactoryAccess(reqUser, shipment);
@@ -101,5 +115,21 @@ export const updateShipmentStatus = async (reqUser, id, body) => {
     throw badReq(`Cannot transition shipment from "${shipment.status}" to "${status}".`);
   }
 
-  return updateShipmentById(id, { status });
+  const updated = await updateShipmentById(id, { status });
+
+  if (updated) {
+    logAudit({
+      action:      'shipment.status_changed',
+      entity_type: 'shipment',
+      entity_id:   id,
+      factory_id:  shipment.factory_id,
+      user_id:     reqUser.user_id,
+      old_value:   { status: shipment.status },
+      new_value:   { status },
+      ip_address:  meta.ip,
+      user_agent:  meta.userAgent,
+    });
+  }
+
+  return updated;
 };

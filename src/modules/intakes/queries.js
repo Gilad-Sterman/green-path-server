@@ -57,27 +57,49 @@ export const insertIntake = async ({
   net_weight_kg, eligible_input_percent, intake_date, delivery_note_number,
   data_entry_profile, location_status, notes, created_by,
 }) => {
-  const { rows } = await pool.query(
-    `WITH ins AS (
-       INSERT INTO raw_material_intakes
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: [raw] } = await client.query(
+      `INSERT INTO raw_material_intakes
          (factory_id, supplier_id, material_type, material_source, material_status,
           net_weight_kg, eligible_input_percent, intake_date, delivery_note_number,
           data_entry_profile, location_status, notes, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-       RETURNING *
-     )
-     SELECT ins.*, s.name AS supplier_name, u.full_name AS created_by_name
-     FROM ins
-     JOIN suppliers s ON s.id = ins.supplier_id
-     LEFT JOIN users u ON u.id = ins.created_by`,
-    [
-      factory_id, supplier_id, material_type, material_source, material_status,
-      net_weight_kg, eligible_input_percent ?? 100, intake_date, delivery_note_number,
-      data_entry_profile || null, location_status || null, notes || null,
-      created_by || null,
-    ]
-  );
-  return rows[0];
+       RETURNING *`,
+      [
+        factory_id, supplier_id, material_type, material_source, material_status,
+        net_weight_kg, eligible_input_percent ?? 100, intake_date, delivery_note_number,
+        data_entry_profile || null, location_status || null, notes || null,
+        created_by || null,
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO material_ledger_entries
+         (factory_id, entity_type, entity_id, movement_type, material_type, eligible_weight_delta_kg)
+       VALUES ($1, 'intake', $2, 'input', $3, ROUND($4::numeric, 2))`,
+      [factory_id, raw.id, material_type, raw.eligible_weight_kg]
+    );
+
+    await client.query('COMMIT');
+
+    const { rows } = await pool.query(
+      `SELECT rmi.*, s.name AS supplier_name, u.full_name AS created_by_name
+       FROM raw_material_intakes rmi
+       JOIN suppliers s ON s.id = rmi.supplier_id
+       LEFT JOIN users u ON u.id = rmi.created_by
+       WHERE rmi.id = $1`,
+      [raw.id]
+    );
+    return rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 export const updateIntakeById = async (id, fields) => {

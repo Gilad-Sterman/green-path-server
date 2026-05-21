@@ -19,6 +19,7 @@ import shipmentsRoutes from './modules/shipments/routes.js';
 import creditsRoutes from './modules/credits/routes.js';
 import flagsRoutes   from './modules/flags/routes.js';
 import reportsRoutes from './modules/reports/routes.js';
+import ledgerRoutes  from './modules/ledger/routes.js';
 import { requestLogger } from './middleware/requestLogger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -50,6 +51,7 @@ app.use('/api/shipments', shipmentsRoutes);
 app.use('/api/credits',   creditsRoutes);
 app.use('/api/flags',     flagsRoutes);
 app.use('/api/reports',   reportsRoutes);
+app.use('/api/ledger',    ledgerRoutes);
 
 // SPA fallback — serve index.html for any non-API route
 app.get('/{*path}', (req, res) => {

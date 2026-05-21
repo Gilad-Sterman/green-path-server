@@ -96,14 +96,21 @@ export const createShipmentTransaction = async (shipmentData, items) => {
   try {
     await client.query('BEGIN');
 
-    const eligible_output_kg = items.reduce((sum, item) => sum + item.weight_kg, 0);
+    const eligible_output_kg = parseFloat(
+      items.reduce((sum, item) => sum + item.weight_kg, 0).toFixed(2)
+    );
 
-    // Insert shipment
+    // Insert shipment — CTE so customer_name is returned immediately
     const { rows: [shipment] } = await client.query(
-      `INSERT INTO shipments
-         (factory_id, customer_id, shipment_date, destination_address, eligible_output_kg, notes)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
+      `WITH ins AS (
+         INSERT INTO shipments
+           (factory_id, customer_id, shipment_date, destination_address, eligible_output_kg, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *
+       )
+       SELECT ins.*, c.name AS customer_name
+       FROM ins
+       JOIN customers c ON c.id = ins.customer_id`,
       [
         shipmentData.factory_id, shipmentData.customer_id,
         shipmentData.shipment_date, shipmentData.destination_address,
@@ -168,7 +175,7 @@ export const createShipmentTransaction = async (shipmentData, items) => {
     await client.query(
       `INSERT INTO material_ledger_entries
          (factory_id, entity_type, entity_id, movement_type, material_type, eligible_weight_delta_kg)
-       VALUES ($1, 'shipment', $2, 'output', $3, $4)`,
+       VALUES ($1, 'shipment', $2, 'output', $3, ROUND($4::numeric, 2))`,
       [shipmentData.factory_id, shipment.id, 'mixed', -eligible_output_kg]
     );
 

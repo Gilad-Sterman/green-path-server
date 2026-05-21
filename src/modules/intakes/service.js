@@ -2,6 +2,7 @@ import {
   listIntakes, getIntakeById, checkDuplicateDeliveryNote,
   insertIntake, updateIntakeById,
 } from './queries.js';
+import { logAudit } from '../../services/audit.js';
 
 const MATERIAL_TYPES   = ['plastic', 'paper', 'metal', 'glass', 'textile', 'rubber', 'mixed', 'other'];
 const MATERIAL_SOURCES = ['post_consumer', 'post_industrial', 'commercial', 'municipal', 'other'];
@@ -43,7 +44,7 @@ export const getIntake = async (reqUser, id) => {
   return intake;
 };
 
-export const createIntake = async (reqUser, body) => {
+export const createIntake = async (reqUser, body, meta = {}) => {
   const {
     supplier_id, material_type, material_source, material_status,
     net_weight_kg, eligible_input_percent, intake_date, delivery_note_number,
@@ -95,7 +96,7 @@ export const createIntake = async (reqUser, body) => {
     );
   }
 
-  return insertIntake({
+  const intake = await insertIntake({
     factory_id, supplier_id,
     material_type, material_source, material_status,
     net_weight_kg: weight,
@@ -107,9 +108,22 @@ export const createIntake = async (reqUser, body) => {
     notes,
     created_by: reqUser.user_id,
   });
+
+  logAudit({
+    action:      'intake.created',
+    entity_type: 'intake',
+    entity_id:   intake.id,
+    factory_id:  intake.factory_id,
+    user_id:     reqUser.user_id,
+    new_value:   intake,
+    ip_address:  meta.ip,
+    user_agent:  meta.userAgent,
+  });
+
+  return intake;
 };
 
-export const updateIntake = async (reqUser, id, body) => {
+export const updateIntake = async (reqUser, id, body, meta = {}) => {
   const intake = await getIntakeById(id);
   if (!intake) throw notFound();
   assertFactoryAccess(reqUser, intake);
@@ -147,5 +161,21 @@ export const updateIntake = async (reqUser, id, body) => {
   if (body.location_status        !== undefined) allowed.location_status     = body.location_status;
   if (body.notes                  !== undefined) allowed.notes               = body.notes;
 
-  return updateIntakeById(id, allowed);
+  const updated = await updateIntakeById(id, allowed);
+
+  if (updated) {
+    logAudit({
+      action:      'intake.updated',
+      entity_type: 'intake',
+      entity_id:   id,
+      factory_id:  intake.factory_id,
+      user_id:     reqUser.user_id,
+      old_value:   intake,
+      new_value:   updated,
+      ip_address:  meta.ip,
+      user_agent:  meta.userAgent,
+    });
+  }
+
+  return updated;
 };
