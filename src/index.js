@@ -63,12 +63,13 @@ const checkEnv = (key) => (process.env[key] ? '✓' : '✗ NOT SET');
 const logServicesStatus = async () => {
   const services = [
     { name: 'PostgreSQL', status: null },
-    { name: 'Supabase Storage', status: checkEnv('SUPABASE_URL') },
-    { name: 'Supabase Storage', status: checkEnv('SUPABASE_SERVICE_ROLE_KEY') },
-    { name: 'JWT', status: checkEnv('JWT_SECRET') },
-    { name: 'JWT', status: checkEnv('REFRESH_TOKEN_SECRET') },
+    { name: 'Supabase URL', status: checkEnv('SUPABASE_URL') },
+    { name: 'Supabase SRK', status: checkEnv('SUPABASE_SERVICE_ROLE_KEY') },
+    { name: 'JWT Secret', status: checkEnv('JWT_SECRET') },
+    { name: 'JWT Refresh Token', status: checkEnv('REFRESH_TOKEN_SECRET') },
     { name: 'Twilio OTP', status: checkEnv('TWILIO_ACCOUNT_SID') },
     { name: 'OCR', status: checkEnv('AZURE_OCR_KEY') },
+    { name: 'Gemini', status: checkEnv('GEMINI_API_KEY') },
   ];
 
   try {
