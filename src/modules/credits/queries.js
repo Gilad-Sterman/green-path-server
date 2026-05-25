@@ -42,15 +42,23 @@ export const getCreditsSummaryByFactory = async (factory_id) => {
   };
 };
 
-export const getCreditsSummaryPlatform = async () => {
+export const getCreditsSummaryPlatform = async ({ date_from, date_to } = {}) => {
   const { rows } = await pool.query(
     `SELECT
        COALESCE(SUM(eligible_output_kg), 0)                                         AS total_credits_kg,
        COALESCE(SUM(eligible_output_kg) FILTER (WHERE kind = 'operational'),  0)    AS operational_kg,
        COALESCE(SUM(eligible_output_kg) FILTER (WHERE kind = 'retroactive'),  0)    AS retroactive_kg,
        COUNT(*)                                                                      AS total_count,
-       (SELECT COALESCE(SUM(eligible_weight_kg), 0) FROM raw_material_intakes)      AS total_eligible_input_kg
-     FROM credits_ledger`
+       (
+         SELECT COALESCE(SUM(eligible_weight_kg), 0)
+         FROM raw_material_intakes
+         WHERE ($1::timestamptz IS NULL OR created_at >= $1)
+           AND ($2::timestamptz IS NULL OR created_at <= $2)
+       ) AS total_eligible_input_kg
+     FROM credits_ledger
+     WHERE ($1::timestamptz IS NULL OR created_at >= $1)
+       AND ($2::timestamptz IS NULL OR created_at <= $2)`,
+    [date_from || null, date_to || null]
   );
   const row = rows[0];
   return {

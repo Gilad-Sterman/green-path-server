@@ -14,12 +14,12 @@ export const createFactoryWithManager = async (factoryData, managerData) => {
     );
     const factory = factoryRows[0];
 
-    const { full_name, phone_number } = managerData;
+    const { full_name, phone_number, email } = managerData;
     const { rows: userRows } = await client.query(
-      `INSERT INTO users (phone_number, full_name, role, factory_id)
-       VALUES ($1, $2, 'manager', $3)
-       RETURNING id, created_at, factory_id, phone_number, full_name, role, is_active`,
-      [phone_number, full_name, factory.id]
+      `INSERT INTO users (phone_number, full_name, role, factory_id, email)
+       VALUES ($1, $2, 'manager', $3, $4)
+       RETURNING id, created_at, factory_id, phone_number, full_name, role, is_active, email`,
+      [phone_number, full_name, factory.id, email || null]
     );
     const manager = userRows[0];
 
@@ -38,13 +38,34 @@ export const listFactories = async ({ status, limit = 50, offset = 0 }) => {
   const params = [];
   let idx = 1;
 
-  if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
+  if (status) { conditions.push(`f.status = $${idx++}`); params.push(status); }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await pool.query(
-    `SELECT f.*,
-            COUNT(u.id) FILTER (WHERE u.is_active = true) AS active_user_count
+    `SELECT
+       f.*,
+       COUNT(u.id) FILTER (WHERE u.is_active = true AND u.role = 'employee') AS employee_count,
+       COUNT(u.id) FILTER (WHERE u.is_active = true AND u.role = 'manager')  AS manager_count,
+       COUNT(u.id) FILTER (WHERE u.is_active = true)                         AS active_user_count,
+       (
+         SELECT full_name FROM users
+         WHERE factory_id = f.id AND role = 'manager'
+         ORDER BY created_at ASC LIMIT 1
+       ) AS contact_name,
+       (
+         SELECT COUNT(*) FROM flags
+         WHERE factory_id = f.id AND status = 'open'
+       ) AS open_flags_count,
+       COALESCE((
+         SELECT SUM(eligible_output_kg) FROM credits_ledger
+         WHERE factory_id = f.id
+       ), 0) AS total_credits_kg,
+       GREATEST(
+         (SELECT MAX(created_at) FROM raw_material_intakes WHERE factory_id = f.id),
+         (SELECT MAX(created_at) FROM batches            WHERE factory_id = f.id),
+         (SELECT MAX(created_at) FROM shipments          WHERE factory_id = f.id)
+       ) AS last_activity
      FROM factories f
      LEFT JOIN users u ON u.factory_id = f.id
      ${where}
@@ -85,6 +106,28 @@ export const insertFactory = async ({ name, company_id_number, address, geofence
     [name, company_id_number, address, geofence_center || null, geofence_radius_meters || null]
   );
   return rows[0];
+};
+
+export const suspendFactoryById = async (id, reason) => {
+  const { rows } = await pool.query(
+    `UPDATE factories
+     SET status = 'suspended', updated_at = now()
+     WHERE id = $1 AND status = 'active'
+     RETURNING *`,
+    [id]
+  );
+  return rows[0] || null;
+};
+
+export const unsuspendFactoryById = async (id) => {
+  const { rows } = await pool.query(
+    `UPDATE factories
+     SET status = 'active', updated_at = now()
+     WHERE id = $1 AND status = 'suspended'
+     RETURNING *`,
+    [id]
+  );
+  return rows[0] || null;
 };
 
 export const updateFactoryById = async (id, fields) => {

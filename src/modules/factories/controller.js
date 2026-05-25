@@ -49,3 +49,25 @@ export const updateFactory = async (req, res, next) => {
     next(err);
   }
 };
+
+// POST /api/factories/:id/suspend
+export const suspendFactory = async (req, res, next) => {
+  try {
+    const factory = await factoriesService.suspendFactory(req.params.id, req.body.reason);
+    return success(res, { factory });
+  } catch (err) {
+    if (err.status) return error(res, 'factory-error', err.message, err.status);
+    next(err);
+  }
+};
+
+// POST /api/factories/:id/unsuspend
+export const unsuspendFactory = async (req, res, next) => {
+  try {
+    const factory = await factoriesService.unsuspendFactory(req.params.id);
+    return success(res, { factory });
+  } catch (err) {
+    if (err.status) return error(res, 'factory-error', err.message, err.status);
+    next(err);
+  }
+};

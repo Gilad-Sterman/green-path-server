@@ -48,9 +48,14 @@ export const getFlagCountByStatus = async (factory_id) => {
   return rows;
 };
 
-export const getFlagCountByStatusPlatform = async () => {
+export const getFlagCountByStatusPlatform = async ({ date_from, date_to } = {}) => {
   const { rows } = await pool.query(
-    `SELECT status, COUNT(*)::int AS count FROM flags GROUP BY status`
+    `SELECT status, COUNT(*)::int AS count
+     FROM flags
+     WHERE ($1::timestamptz IS NULL OR created_at >= $1)
+       AND ($2::timestamptz IS NULL OR created_at <= $2)
+     GROUP BY status`,
+    [date_from || null, date_to || null]
   );
   return rows;
 };

@@ -21,6 +21,7 @@ export const getCredits = async (reqUser, query) => {
 
 export const getCreditsSummary = async (reqUser, query) => {
   const factory_id = resolveFactoryId(reqUser, query.factory_id);
-  if (!factory_id) return getCreditsSummaryPlatform();
+  const { date_from, date_to } = query;
+  if (!factory_id) return getCreditsSummaryPlatform({ date_from, date_to });
   return getCreditsSummaryByFactory(factory_id);
 };

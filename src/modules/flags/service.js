@@ -41,11 +41,12 @@ export const getFlag = async (reqUser, id) => {
 
 export const getFlagsSummary = async (reqUser, query) => {
   const factory_id = resolveFactoryId(reqUser, query.factory_id);
+  const { date_from, date_to } = query;
   const rows = factory_id
     ? await getFlagCountByStatus(factory_id)
-    : await getFlagCountByStatusPlatform();
-  const summary = { open: 0, resolved: 0, dismissed: 0 };
-  rows.forEach((r) => { summary[r.status] = r.count; });
+    : await getFlagCountByStatusPlatform({ date_from, date_to });
+  const summary = { open: 0, resolved: 0, dismissed: 0, total: 0 };
+  rows.forEach((r) => { summary[r.status] = r.count; summary.total += r.count; });
   return summary;
 };
 

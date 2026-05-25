@@ -24,3 +24,6 @@ CREATE INDEX users_factory_id_idx   ON public.users (factory_id);
 CREATE INDEX users_phone_number_idx ON public.users (phone_number);
 CREATE INDEX users_role_idx         ON public.users (role);
 CREATE INDEX users_is_active_idx    ON public.users (is_active);
+
+-- Added post-initial-migration: email required for manager/contact users, optional for employees
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email text UNIQUE;
