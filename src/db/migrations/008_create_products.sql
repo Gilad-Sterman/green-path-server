@@ -8,6 +8,8 @@ CREATE TABLE public.products (
   description         text,
   required_lab_tests  text[]      NOT NULL DEFAULT '{}',
   is_active           boolean     NOT NULL DEFAULT true,
+  material_recipe     jsonb        NOT NULL DEFAULT '[]',
+  eligible_percent    numeric(5,2) NOT NULL DEFAULT 0,
   UNIQUE (factory_id, sku)
 );
 
@@ -19,3 +21,4 @@ ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 
 CREATE INDEX products_factory_id_idx ON public.products (factory_id);
 CREATE INDEX products_is_active_idx  ON public.products (is_active);
+

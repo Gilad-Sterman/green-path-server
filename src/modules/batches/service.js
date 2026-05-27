@@ -2,6 +2,7 @@ import {
   listBatches, getBatchById, getBatchWithComponents,
   getIntakeRemainingEligible, createBatchTransaction,
   updateBatchById, cancelBatchTransaction,
+  setBlockedById, setFailedById,
 } from './queries.js';
 import { getProductById } from '../products/queries.js';
 
@@ -112,4 +113,30 @@ export const cancelBatch = async (reqUser, id) => {
   }
   await cancelBatchTransaction(id, batch.factory_id);
   return getBatchById(id);
+};
+
+export const blockBatch = async (reqUser, id) => {
+  const batch = await getBatchById(id);
+  if (!batch) throw notFound();
+  assertFactoryAccess(reqUser, batch);
+  if (batch.is_active === false) throw badReq('Batch is already blocked.');
+  if (batch.status !== 'in_progress') throw badReq('Only in-progress batches can be blocked.');
+  return setBlockedById(id, false);
+};
+
+export const unblockBatch = async (reqUser, id) => {
+  const batch = await getBatchById(id);
+  if (!batch) throw notFound();
+  assertFactoryAccess(reqUser, batch);
+  if (batch.is_active !== false) throw badReq('Batch is not blocked.');
+  return setBlockedById(id, true);
+};
+
+export const failBatch = async (reqUser, id) => {
+  const batch = await getBatchById(id);
+  if (!batch) throw notFound();
+  assertFactoryAccess(reqUser, batch);
+  if (batch.status === 'failed')    throw badReq('Batch is already marked as failed.');
+  if (batch.status === 'cancelled') throw badReq('Cannot fail a cancelled batch.');
+  return setFailedById(id);
 };

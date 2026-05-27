@@ -16,5 +16,8 @@ router.get('/:id', authenticate, anyStaff, batchesController.getBatch);
 router.post('/',               authenticate, managerOrAdmin, batchesController.createBatch);
 router.patch('/:id/complete',  authenticate, managerOrAdmin, batchesController.completeBatch);
 router.patch('/:id/cancel',    authenticate, managerOrAdmin, batchesController.cancelBatch);
+router.patch('/:id/block',     authenticate, managerOrAdmin, batchesController.blockBatch);
+router.patch('/:id/unblock',   authenticate, managerOrAdmin, batchesController.unblockBatch);
+router.patch('/:id/fail',      authenticate, managerOrAdmin, batchesController.failBatch);
 
 export default router;

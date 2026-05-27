@@ -55,3 +55,36 @@ export const cancelBatch = async (req, res, next) => {
     next(err);
   }
 };
+
+// PATCH /api/batches/:id/block
+export const blockBatch = async (req, res, next) => {
+  try {
+    const batch = await batchesService.blockBatch(req.user, req.params.id);
+    return success(res, { batch });
+  } catch (err) {
+    if (err.status) return error(res, 'batch-error', err.message, err.status);
+    next(err);
+  }
+};
+
+// PATCH /api/batches/:id/unblock
+export const unblockBatch = async (req, res, next) => {
+  try {
+    const batch = await batchesService.unblockBatch(req.user, req.params.id);
+    return success(res, { batch });
+  } catch (err) {
+    if (err.status) return error(res, 'batch-error', err.message, err.status);
+    next(err);
+  }
+};
+
+// PATCH /api/batches/:id/fail
+export const failBatch = async (req, res, next) => {
+  try {
+    const batch = await batchesService.failBatch(req.user, req.params.id);
+    return success(res, { batch });
+  } catch (err) {
+    if (err.status) return error(res, 'batch-error', err.message, err.status);
+    next(err);
+  }
+};

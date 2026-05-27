@@ -6,7 +6,8 @@ CREATE TABLE public.batches (
   -- product_id is locked at creation — cannot be changed after batch is created
   product_id        uuid        NOT NULL REFERENCES public.products(id),
   status            text        NOT NULL DEFAULT 'in_progress'
-                    CHECK (status IN ('in_progress', 'completed', 'cancelled')),
+                    CHECK (status IN ('in_progress', 'completed', 'cancelled', 'failed')),
+  is_active         boolean     NOT NULL DEFAULT true,
   output_weight_kg  numeric     NOT NULL CHECK (output_weight_kg > 0),
   used_weight_kg    numeric     NOT NULL DEFAULT 0 CHECK (used_weight_kg >= 0),
   -- remaining_weight_kg is always derived: output_weight_kg - used_weight_kg
@@ -24,3 +25,4 @@ ALTER TABLE public.batches ENABLE ROW LEVEL SECURITY;
 CREATE INDEX batches_factory_id_idx ON public.batches (factory_id);
 CREATE INDEX batches_product_id_idx ON public.batches (product_id);
 CREATE INDEX batches_status_idx     ON public.batches (status);
+CREATE INDEX batches_is_active_idx  ON public.batches (is_active);

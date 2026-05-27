@@ -41,12 +41,12 @@ export const getProductBySku = async (factory_id, sku) => {
   return rows[0] || null;
 };
 
-export const insertProduct = async ({ factory_id, name, sku, description, required_lab_tests }) => {
+export const insertProduct = async ({ factory_id, name, sku, description, required_lab_tests, material_recipe, eligible_percent }) => {
   const { rows } = await pool.query(
-    `INSERT INTO products (factory_id, name, sku, description, required_lab_tests)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO products (factory_id, name, sku, description, required_lab_tests, material_recipe, eligible_percent)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [factory_id, name, sku, description || null, required_lab_tests || []]
+    [factory_id, name, sku, description || null, required_lab_tests || [], JSON.stringify(material_recipe || []), eligible_percent ?? 0]
   );
   return rows[0];
 };
@@ -56,10 +56,12 @@ export const updateProductById = async (id, fields) => {
   const params = [];
   let idx = 1;
 
-  if (fields.name               !== undefined) { setClauses.push(`name               = $${idx++}`); params.push(fields.name);               }
-  if (fields.description        !== undefined) { setClauses.push(`description        = $${idx++}`); params.push(fields.description);        }
-  if (fields.required_lab_tests !== undefined) { setClauses.push(`required_lab_tests = $${idx++}`); params.push(fields.required_lab_tests); }
-  if (fields.is_active          !== undefined) { setClauses.push(`is_active          = $${idx++}`); params.push(fields.is_active);          }
+  if (fields.name               !== undefined) { setClauses.push(`name               = $${idx++}`); params.push(fields.name);                                    }
+  if (fields.description        !== undefined) { setClauses.push(`description        = $${idx++}`); params.push(fields.description);                           }
+  if (fields.required_lab_tests !== undefined) { setClauses.push(`required_lab_tests = $${idx++}`); params.push(fields.required_lab_tests);                    }
+  if (fields.material_recipe    !== undefined) { setClauses.push(`material_recipe    = $${idx++}`); params.push(JSON.stringify(fields.material_recipe));       }
+  if (fields.eligible_percent   !== undefined) { setClauses.push(`eligible_percent   = $${idx++}`); params.push(fields.eligible_percent);                      }
+  if (fields.is_active          !== undefined) { setClauses.push(`is_active          = $${idx++}`); params.push(fields.is_active);                             }
 
   if (!setClauses.length) return null;
 

@@ -124,8 +124,9 @@ export const updateBatchById = async (id, fields) => {
   const params = [];
   let idx = 1;
 
-  if (fields.status !== undefined) { setClauses.push(`status = $${idx++}`); params.push(fields.status); }
-  if (fields.notes  !== undefined) { setClauses.push(`notes  = $${idx++}`); params.push(fields.notes);  }
+  if (fields.status    !== undefined) { setClauses.push(`status    = $${idx++}`); params.push(fields.status);    }
+  if (fields.notes     !== undefined) { setClauses.push(`notes     = $${idx++}`); params.push(fields.notes);     }
+  if (fields.is_active !== undefined) { setClauses.push(`is_active = $${idx++}`); params.push(fields.is_active); }
 
   if (!setClauses.length) return null;
 
@@ -133,6 +134,22 @@ export const updateBatchById = async (id, fields) => {
   const { rows } = await pool.query(
     `UPDATE batches SET ${setClauses.join(', ')}, updated_at = now() WHERE id = $${idx} RETURNING *`,
     params
+  );
+  return rows[0] || null;
+};
+
+export const setBlockedById = async (id, is_active) => {
+  const { rows } = await pool.query(
+    `UPDATE batches SET is_active = $1, updated_at = now() WHERE id = $2 RETURNING *`,
+    [is_active, id]
+  );
+  return rows[0] || null;
+};
+
+export const setFailedById = async (id) => {
+  const { rows } = await pool.query(
+    `UPDATE batches SET status = 'failed', updated_at = now() WHERE id = $1 RETURNING *`,
+    [id]
   );
   return rows[0] || null;
 };

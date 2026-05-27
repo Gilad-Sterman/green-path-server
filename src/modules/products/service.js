@@ -4,6 +4,34 @@ const notFound  = (msg = 'Product not found.')    => Object.assign(new Error(msg
 const badReq    = (msg)                            => Object.assign(new Error(msg), { status: 400 });
 const conflict  = (msg)                            => Object.assign(new Error(msg), { status: 409 });
 
+const VALID_MATERIAL_TYPES = ['PET', 'HDPE', 'PP', 'LDPE', 'PVC', 'mixed', 'other', 'virgin'];
+
+const computeEligiblePercent = (recipe) =>
+  recipe.reduce((s, r) => s + (r.is_recycled ? parseFloat(r.percent) : 0), 0);
+
+const validateRecipe = (recipe) => {
+  if (!Array.isArray(recipe) || recipe.length === 0)
+    throw badReq('material_recipe must contain at least one material.');
+  if (recipe.length > 6)
+    throw badReq('material_recipe cannot have more than 6 materials.');
+
+  const types = [];
+  for (const row of recipe) {
+    if (!VALID_MATERIAL_TYPES.includes(row.material_type))
+      throw badReq(`Invalid material_type: "${row.material_type}".`);
+    const pct = parseFloat(row.percent);
+    if (isNaN(pct) || pct <= 0 || pct > 99)
+      throw badReq(`percent must be between 1 and 99 (got ${row.percent}).`);
+    if (types.includes(row.material_type))
+      throw badReq(`Duplicate material_type "${row.material_type}" in recipe.`);
+    types.push(row.material_type);
+  }
+
+  const sum = recipe.reduce((s, r) => s + parseFloat(r.percent), 0);
+  if (Math.abs(sum - 100) > 0.01)
+    throw badReq(`Sum of material percentages must equal 100 (got ${sum.toFixed(2)}).`);
+};
+
 const resolveFactoryId = (reqUser, queryFactoryId) => {
   if (reqUser.role === 'internal_admin') return queryFactoryId || undefined;
   return reqUser.factory_id;
@@ -35,13 +63,14 @@ export const getProduct = async (reqUser, id) => {
 };
 
 export const createProduct = async (reqUser, body) => {
-  const { name, sku, description, required_lab_tests } = body;
+  const { name, sku, description, required_lab_tests, material_recipe } = body;
 
   if (!name?.trim()) throw badReq('name is required.');
   if (!sku?.trim())  throw badReq('sku is required.');
-  if (required_lab_tests && !Array.isArray(required_lab_tests)) {
+  if (required_lab_tests && !Array.isArray(required_lab_tests))
     throw badReq('required_lab_tests must be an array of strings.');
-  }
+
+  validateRecipe(material_recipe);
 
   const factory_id = reqUser.role === 'internal_admin'
     ? (body.factory_id || (() => { throw badReq('factory_id is required for internal_admin.'); })())
@@ -52,10 +81,12 @@ export const createProduct = async (reqUser, body) => {
 
   return insertProduct({
     factory_id,
-    name: name.trim(),
-    sku:  sku.trim().toUpperCase(),
+    name:             name.trim(),
+    sku:              sku.trim().toUpperCase(),
     description,
     required_lab_tests,
+    material_recipe,
+    eligible_percent: computeEligiblePercent(material_recipe),
   });
 };
 
@@ -68,6 +99,11 @@ export const updateProduct = async (reqUser, id, body) => {
   if (body.name               !== undefined) allowed.name               = body.name;
   if (body.description        !== undefined) allowed.description        = body.description;
   if (body.required_lab_tests !== undefined) allowed.required_lab_tests = body.required_lab_tests;
+  if (body.material_recipe    !== undefined) {
+    validateRecipe(body.material_recipe);
+    allowed.material_recipe  = body.material_recipe;
+    allowed.eligible_percent = computeEligiblePercent(body.material_recipe);
+  }
 
   return updateProductById(id, allowed);
 };
