@@ -65,7 +65,7 @@ export const resolveFlag = async (reqUser, id, body) => {
     throw badReq(`resolution must be one of: ${RESOLUTIONS.join(', ')}`);
   }
 
-  return resolveFlagById(id, { resolution, resolution_note, resolved_by: reqUser.id });
+  return resolveFlagById(id, { resolution, resolution_note, resolved_by: reqUser.user_id });
 };
 
 export const dismissFlag = async (reqUser, id, body) => {
@@ -77,5 +77,5 @@ export const dismissFlag = async (reqUser, id, body) => {
     throw badReq(`Flag is already ${flag.status}.`);
   }
 
-  return dismissFlagById(id, { resolution_note: body.resolution_note, resolved_by: reqUser.id });
+  return dismissFlagById(id, { resolution_note: body.resolution_note, resolved_by: reqUser.user_id });
 };

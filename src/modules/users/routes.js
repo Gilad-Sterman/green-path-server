@@ -15,5 +15,6 @@ router.get('/:id',                authenticate, requireRole('manager', 'internal
 router.patch('/:id',              authenticate, requireRole('manager', 'internal_admin'), usersController.updateUser);
 router.patch('/:id/deactivate',   authenticate, requireRole('manager', 'internal_admin'), usersController.deactivateUser);
 router.patch('/:id/reactivate',   authenticate, requireRole('manager', 'internal_admin'), usersController.reactivateUser);
+router.delete('/:id',             authenticate, requireRole('manager', 'internal_admin'), usersController.deleteUser);
 
 export default router;

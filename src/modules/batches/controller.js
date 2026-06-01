@@ -23,10 +23,32 @@ export const getBatch = async (req, res, next) => {
   }
 };
 
+// GET /api/batches/generate-code
+export const generateCode = async (req, res, next) => {
+  try {
+    const result = await batchesService.generateCode(req.user, req.query);
+    return success(res, result);
+  } catch (err) {
+    if (err.status) return error(res, 'batch-error', err.message, err.status);
+    next(err);
+  }
+};
+
+// GET /api/batches/sources
+export const getAvailableSources = async (req, res, next) => {
+  try {
+    const result = await batchesService.getAvailableSources(req.user, req.query);
+    return success(res, result);
+  } catch (err) {
+    if (err.status) return error(res, 'batch-error', err.message, err.status);
+    next(err);
+  }
+};
+
 // POST /api/batches
 export const createBatch = async (req, res, next) => {
   try {
-    const batch = await batchesService.createBatch(req.user, req.body);
+    const batch = await batchesService.createBatch(req.user, req.body, { ip: req.ip });
     return success(res, { batch }, {}, 201);
   } catch (err) {
     if (err.status) return error(res, 'batch-error', err.message, err.status);

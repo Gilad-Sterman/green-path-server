@@ -9,8 +9,10 @@ const managerOrAdmin = requireRole('manager', 'internal_admin');
 const anyStaff       = requireRole('employee', 'manager', 'internal_admin');
 
 // Read — all staff
-router.get('/',    authenticate, anyStaff, batchesController.listBatches);
-router.get('/:id', authenticate, anyStaff, batchesController.getBatch);
+router.get('/',               authenticate, anyStaff, batchesController.listBatches);
+router.get('/generate-code', authenticate, anyStaff, batchesController.generateCode);
+router.get('/sources',       authenticate, anyStaff, batchesController.getAvailableSources);
+router.get('/:id',           authenticate, anyStaff, batchesController.getBatch);
 
 // Write — manager and internal_admin only
 router.post('/',               authenticate, managerOrAdmin, batchesController.createBatch);

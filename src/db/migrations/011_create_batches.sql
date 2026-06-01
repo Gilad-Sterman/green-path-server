@@ -5,6 +5,15 @@ CREATE TABLE public.batches (
   factory_id        uuid        NOT NULL REFERENCES public.factories(id),
   -- product_id is locked at creation — cannot be changed after batch is created
   product_id        uuid        NOT NULL REFERENCES public.products(id),
+  -- batch_code is auto-generated (PR-DDMMYYYY-XXX) but user may override before save.
+  -- Locked after creation. Unique per factory.
+  batch_code        text        NOT NULL,
+  -- batch_date defaults to today but user may set it to a past date.
+  -- Future dates are blocked. Stored separately from created_at for traceability.
+  batch_date        date        NOT NULL DEFAULT CURRENT_DATE,
+  -- audit fields for batch_code override tracking
+  original_batch_code text      NOT NULL,
+  was_code_edited   boolean     NOT NULL DEFAULT false,
   status            text        NOT NULL DEFAULT 'in_progress'
                     CHECK (status IN ('in_progress', 'completed', 'cancelled', 'failed')),
   is_active         boolean     NOT NULL DEFAULT true,
@@ -13,7 +22,8 @@ CREATE TABLE public.batches (
   -- remaining_weight_kg is always derived: output_weight_kg - used_weight_kg
   remaining_weight_kg numeric   NOT NULL GENERATED ALWAYS AS
                     (output_weight_kg - used_weight_kg) STORED,
-  notes             text
+  notes             text,
+  CONSTRAINT batches_batch_code_factory_unique UNIQUE (factory_id, batch_code)
 );
 
 CREATE TRIGGER set_batches_updated_at

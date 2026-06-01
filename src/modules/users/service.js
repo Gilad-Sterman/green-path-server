@@ -1,4 +1,4 @@
-import { getUserById, getUserByPhone, listUsers, insertUser, updateUserById } from './queries.js';
+import { getUserById, getUserByPhone, listUsers, insertUser, updateUserById, deleteUserById } from './queries.js';
 
 const VALID_ROLES = ['employee', 'manager', 'internal_admin'];
 
@@ -85,4 +85,15 @@ export const deactivateUser = async (reqUser, id) => {
 
 export const reactivateUser = async (reqUser, id) => {
   return updateUser(reqUser, id, { is_active: true });
+};
+
+export const deleteUser = async (reqUser, id) => {
+  if (id === reqUser.user_id) throw forbidden('Cannot delete your own account.');
+  const target = await getUserById(id);
+  if (!target) throw notFound();
+  if (reqUser.role === 'manager') {
+    if (target.factory_id !== reqUser.factory_id) throw notFound();
+    if (target.role !== 'employee') throw forbidden('Managers can only delete employee accounts.');
+  }
+  await deleteUserById(id);
 };

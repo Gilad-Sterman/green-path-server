@@ -77,3 +77,14 @@ export const reactivateUser = async (req, res, next) => {
     next(err);
   }
 };
+
+// DELETE /api/users/:id
+export const deleteUser = async (req, res, next) => {
+  try {
+    await usersService.deleteUser(req.user, req.params.id);
+    return success(res, { deleted: true });
+  } catch (err) {
+    if (err.status) return error(res, 'user-error', err.message, err.status);
+    next(err);
+  }
+};

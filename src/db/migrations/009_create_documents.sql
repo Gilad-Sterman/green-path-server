@@ -7,7 +7,7 @@ CREATE TABLE public.documents (
   document_type       text        NOT NULL
                       CHECK (document_type IN (
                         'delivery_note', 'invoice_in', 'invoice_out',
-                        'lab_test', 'retro_invoice', 'other'
+                        'lab_test', 'retro_invoice', 'weighing_document', 'other'
                       )),
   file_url            text        NOT NULL,
   file_name           text,

@@ -1,13 +1,20 @@
 import {
   listBatches, getBatchById, getBatchWithComponents,
-  getIntakeRemainingEligible, createBatchTransaction,
-  updateBatchById, cancelBatchTransaction,
+  getIntakeRemainingEligible, getBatchRemainingAvailable,
+  generateBatchCode, isBatchCodeUnique, getBatchAncestorIds,
+  getAvailableIntakeSources, getAvailableBatchSources,
+  createBatchTransaction, updateBatchById, cancelBatchTransaction,
   setBlockedById, setFailedById,
 } from './queries.js';
 import { getProductById } from '../products/queries.js';
+import { linkDocumentsToEntity } from '../documents/queries.js';
+import { logAudit } from '../../services/audit.js';
 
 const notFound = (msg = 'Batch not found.')  => Object.assign(new Error(msg), { status: 404 });
 const badReq   = (msg)                        => Object.assign(new Error(msg), { status: 400 });
+const conflict = (msg)                        => Object.assign(new Error(msg), { status: 409 });
+
+const BATCH_CODE_RE = /^[A-Za-z0-9\-]+$/
 
 const resolveFactoryId = (reqUser, queryFactoryId) => {
   if (reqUser.role === 'internal_admin') return queryFactoryId || undefined;
@@ -39,58 +46,135 @@ export const getBatch = async (reqUser, id) => {
   return batch;
 };
 
-export const createBatch = async (reqUser, body) => {
-  const { product_id, output_weight_kg, notes, components } = body;
+export const generateCode = async (reqUser, query) => {
+  const factory_id = reqUser.role === 'internal_admin'
+    ? (query.factory_id || (() => { throw badReq('factory_id is required.'); })())
+    : reqUser.factory_id;
+  const code = await generateBatchCode(factory_id, query.date || null);
+  return { batch_code: code };
+};
 
-  if (!product_id)                            throw badReq('product_id is required.');
-  if (!output_weight_kg)                      throw badReq('output_weight_kg is required.');
-  if (!Array.isArray(components) || components.length === 0) {
-    throw badReq('components must be a non-empty array of { intake_id, weight_kg }.');
+export const getAvailableSources = async (reqUser, query) => {
+  const factory_id = reqUser.role === 'internal_admin'
+    ? (query.factory_id || (() => { throw badReq('factory_id is required.'); })())
+    : reqUser.factory_id;
+  if (!query.product_id) throw badReq('product_id is required.');
+  const [intakes, batches] = await Promise.all([
+    getAvailableIntakeSources(factory_id, query.product_id),
+    getAvailableBatchSources(factory_id),
+  ]);
+  return { intakes, batches };
+};
+
+export const createBatch = async (reqUser, body, meta = {}) => {
+  const {
+    product_id, batch_code: submitted_code, batch_date, notes,
+    sources, document_ids,
+  } = body;
+
+  if (!product_id) throw badReq('product_id is required.');
+  if (!Array.isArray(sources) || sources.length === 0) {
+    throw badReq('sources must be a non-empty array of { source_type, source_id, weight_kg }.');
   }
-
-  const weight = parseFloat(output_weight_kg);
-  if (isNaN(weight) || weight <= 0) throw badReq('output_weight_kg must be a positive number.');
+  if (sources.length > 6) throw badReq('Maximum 6 source materials per batch.');
 
   const factory_id = reqUser.role === 'internal_admin'
     ? (body.factory_id || (() => { throw badReq('factory_id is required for internal_admin.'); })())
     : reqUser.factory_id;
 
-  // Validate product belongs to factory
+  // Validate product
   const product = await getProductById(product_id);
   if (!product || product.factory_id !== factory_id) throw badReq('Product not found in this factory.');
   if (!product.is_active) throw badReq('Cannot create a batch with an inactive product.');
 
-  // Validate each component and check remaining eligible weight
-  const resolvedComponents = [];
-  for (const [i, comp] of components.entries()) {
-    if (!comp.intake_id) throw badReq(`Component at index ${i}: intake_id is required.`);
-
-    const compWeight = parseFloat(comp.weight_kg);
-    if (isNaN(compWeight) || compWeight <= 0) {
-      throw badReq(`Component at index ${i}: weight_kg must be a positive number.`);
-    }
-
-    const intakeInfo = await getIntakeRemainingEligible(comp.intake_id);
-    if (!intakeInfo) throw badReq(`Component at index ${i}: intake not found.`);
-    if (intakeInfo.factory_id !== factory_id) {
-      throw badReq(`Component at index ${i}: intake does not belong to this factory.`);
-    }
-
-    const remaining = parseFloat(intakeInfo.remaining_eligible_kg);
-    if (compWeight > remaining) {
-      throw badReq(
-        `Component at index ${i}: requested ${compWeight} kg exceeds remaining eligible weight of ${remaining} kg for this intake.`
-      );
-    }
-
-    resolvedComponents.push({
-      intake_id:     comp.intake_id,
-      weight_kg:     compWeight,
-      material_type: intakeInfo.material_type,
-    });
+  // Validate batch_date (no future dates)
+  if (batch_date && new Date(batch_date) > new Date()) {
+    throw badReq('Batch date cannot be in the future.');
   }
 
-  const batch = await createBatchTransaction({ factory_id, product_id, output_weight_kg: weight, notes }, resolvedComponents);
+  // Generate or validate batch_code
+  const auto_code       = await generateBatchCode(factory_id, batch_date || null);
+  const final_code      = submitted_code ? submitted_code.trim() : auto_code;
+  const was_code_edited = submitted_code ? (submitted_code.trim() !== auto_code) : false;
+
+  if (!final_code)                     throw badReq('batch_code cannot be empty.');
+  if (!BATCH_CODE_RE.test(final_code)) throw badReq('batch_code may only contain letters, numbers, and hyphens.');
+  const isUnique = await isBatchCodeUnique(factory_id, final_code);
+  if (!isUnique) throw conflict('batch_code already exists in this factory. Choose a unique code.');
+
+  // Validate each source and resolve remaining weight
+  const resolvedSources = [];
+  for (const [i, src] of sources.entries()) {
+    if (!src.source_type || !['intake', 'batch'].includes(src.source_type)) {
+      throw badReq(`Source ${i}: source_type must be 'intake' or 'batch'.`);
+    }
+    if (!src.source_id) throw badReq(`Source ${i}: source_id is required.`);
+
+    const srcWeight = parseFloat(src.weight_kg);
+    if (isNaN(srcWeight) || srcWeight <= 0) {
+      throw badReq(`Source ${i}: weight_kg must be a positive number.`);
+    }
+
+    if (src.source_type === 'intake') {
+      const info = await getIntakeRemainingEligible(src.source_id);
+      if (!info)                            throw badReq(`Source ${i}: intake not found.`);
+      if (info.factory_id !== factory_id)   throw badReq(`Source ${i}: intake does not belong to this factory.`);
+      if (srcWeight > parseFloat(info.remaining_eligible_kg)) {
+        throw badReq(`Source ${i}: requested ${srcWeight} kg exceeds remaining ${info.remaining_eligible_kg} kg.`);
+      }
+      resolvedSources.push({ source_type: 'intake', source_id: src.source_id, weight_kg: srcWeight, material_type: info.material_type });
+    } else {
+      const info = await getBatchRemainingAvailable(src.source_id);
+      if (!info)                                         throw badReq(`Source ${i}: source batch not found.`);
+      if (info.factory_id !== factory_id)                throw badReq(`Source ${i}: source batch does not belong to this factory.`);
+      if (!info.is_active)                               throw badReq(`Source ${i}: source batch is blocked.`);
+      if (['cancelled', 'failed'].includes(info.status)) throw badReq(`Source ${i}: source batch is ${info.status}.`);
+      if (srcWeight > parseFloat(info.remaining_eligible_kg)) {
+        throw badReq(`Source ${i}: requested ${srcWeight} kg exceeds remaining ${info.remaining_eligible_kg} kg.`);
+      }
+      resolvedSources.push({ source_type: 'batch', source_id: src.source_id, weight_kg: srcWeight });
+    }
+  }
+
+  // output_weight_kg is always the sum of all source weights (PRD requirement)
+  const output_weight_kg = parseFloat(
+    resolvedSources.reduce((s, r) => s + r.weight_kg, 0).toFixed(4)
+  );
+
+  // Loop prevention: for batch sources, check that no source is an ancestor of another
+  const batchSourceIds = resolvedSources.filter((s) => s.source_type === 'batch').map((s) => s.source_id);
+  if (batchSourceIds.length > 1) {
+    const ancestorSets = await Promise.all(batchSourceIds.map((id) => getBatchAncestorIds(id)));
+    for (let i = 0; i < batchSourceIds.length; i++) {
+      for (let j = 0; j < batchSourceIds.length; j++) {
+        if (i !== j && ancestorSets[i].includes(batchSourceIds[j])) {
+          throw badReq(
+            'Circular reference detected: one source batch is an ancestor of another. This would create a loop in the material traceability chain.'
+          );
+        }
+      }
+    }
+  }
+
+  const batch = await createBatchTransaction(
+    { factory_id, product_id, output_weight_kg, batch_code: final_code, batch_date: batch_date || null, original_batch_code: auto_code, was_code_edited, notes },
+    resolvedSources
+  );
+
+  if (Array.isArray(document_ids) && document_ids.length > 0) {
+    await linkDocumentsToEntity(document_ids, 'batch', batch.id, factory_id);
+  }
+
+  logAudit({
+    action:      'batch.created',
+    entity_type: 'batch',
+    entity_id:   batch.id,
+    factory_id,
+    user_id:     reqUser.user_id,
+    new_value:   { batch_code: final_code, original_batch_code: auto_code, was_code_edited, output_weight_kg, sources: resolvedSources.length },
+    ip_address:  meta.ip || null,
+  });
+
   return getBatchById(batch.id);
 };
 

@@ -3,6 +3,8 @@ import {
   updateShipmentById, createShipmentTransaction,
 } from './queries.js';
 import { getBatchById } from '../batches/queries.js';
+import { linkDocumentsToEntity } from '../documents/queries.js';
+import { insertFlag } from '../flags/queries.js';
 import { logAudit } from '../../services/audit.js';
 
 const STATUSES = ['created', 'shipped', 'delivered', 'cancelled'];
@@ -86,6 +88,19 @@ export const createShipment = async (reqUser, body, meta = {}) => {
     { factory_id, customer_id, shipment_date, destination_address: destination_address.trim(), notes },
     resolvedItems
   );
+
+  const { document_ids } = body;
+  if (Array.isArray(document_ids) && document_ids.length > 0) {
+    await linkDocumentsToEntity(document_ids, 'shipment', result.shipment.id, factory_id);
+  } else {
+    insertFlag({
+      factory_id,
+      entity_type: 'shipment',
+      entity_id:   result.shipment.id,
+      reason:      'missing-document',
+      severity:    'medium',
+    }).catch(() => {});
+  }
 
   logAudit({
     action:      'shipment.created',

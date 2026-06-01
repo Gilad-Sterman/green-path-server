@@ -61,6 +61,16 @@ export const insertDocument = async ({
   return rows[0];
 };
 
+export const linkDocumentsToEntity = async (ids, entity_type, entity_id, factory_id) => {
+  if (!ids?.length) return;
+  await pool.query(
+    `UPDATE documents
+     SET related_entity_type = $1, related_entity_id = $2, updated_at = now()
+     WHERE id = ANY($3::uuid[]) AND factory_id = $4`,
+    [entity_type, entity_id, ids, factory_id]
+  );
+};
+
 export const updateDocumentById = async (id, fields) => {
   const setClauses = [];
   const params = [];

@@ -91,3 +91,13 @@ export const dismissFlagById = async (id, { resolution_note, resolved_by }) => {
   );
   return rows[0] || null;
 };
+
+export const insertFlag = async ({ factory_id, entity_type, entity_id, reason, severity = 'medium' }) => {
+  const { rows } = await pool.query(
+    `INSERT INTO flags (factory_id, entity_type, entity_id, reason, severity)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [factory_id, entity_type, entity_id || null, reason, severity]
+  );
+  return rows[0];
+};

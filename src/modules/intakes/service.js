@@ -2,6 +2,8 @@ import {
   listIntakes, getIntakeById, checkDuplicateDeliveryNote,
   insertIntake, updateIntakeById,
 } from './queries.js';
+import { linkDocumentsToEntity } from '../documents/queries.js';
+import { insertFlag } from '../flags/queries.js';
 import { logAudit } from '../../services/audit.js';
 
 const MATERIAL_TYPES   = ['plastic', 'paper', 'metal', 'glass', 'textile', 'rubber', 'mixed', 'other'];
@@ -108,6 +110,19 @@ export const createIntake = async (reqUser, body, meta = {}) => {
     notes,
     created_by: reqUser.user_id,
   });
+
+  const { document_ids } = body;
+  if (Array.isArray(document_ids) && document_ids.length > 0) {
+    await linkDocumentsToEntity(document_ids, 'raw_intake', intake.id, factory_id);
+  } else {
+    insertFlag({
+      factory_id,
+      entity_type: 'intake',
+      entity_id:   intake.id,
+      reason:      'missing-document',
+      severity:    'medium',
+    }).catch(() => {});
+  }
 
   logAudit({
     action:      'intake.created',
