@@ -42,11 +42,14 @@ export const getShipmentWithItems = async (id) => {
             COALESCE(
               JSON_AGG(
                 JSON_BUILD_OBJECT(
-                  'id',              si.id,
-                  'batch_id',        si.batch_id,
-                  'weight_kg',       si.weight_kg,
-                  'product_name',    p.name,
-                  'product_sku',     p.sku
+                  'id',               si.id,
+                  'batch_id',         si.batch_id,
+                  'product_id',       si.product_id,
+                  'weight_kg',        si.weight_kg,
+                  'eligible_percent', si.eligible_percent,
+                  'credit',           si.credit,
+                  'product_name',     p.name,
+                  'product_sku',      p.sku
                 ) ORDER BY si.created_at
               ) FILTER (WHERE si.id IS NOT NULL),
               '[]'
@@ -54,11 +57,20 @@ export const getShipmentWithItems = async (id) => {
      FROM shipments s
      JOIN customers c ON c.id = s.customer_id
      LEFT JOIN shipment_items si ON si.shipment_id = s.id
-     LEFT JOIN batches b ON b.id = si.batch_id
-     LEFT JOIN products p ON p.id = b.product_id
+     LEFT JOIN products p ON p.id = si.product_id
      WHERE s.id = $1
      GROUP BY s.id, c.name`,
     [id]
+  );
+  return rows[0] || null;
+};
+
+export const getShipmentByDeliveryNote = async (delivery_note_number) => {
+  const { rows } = await pool.query(
+    `SELECT * FROM shipments
+     WHERE delivery_note_number = $1 AND status != 'cancelled'
+     ORDER BY created_at DESC LIMIT 1`,
+    [delivery_note_number]
   );
   return rows[0] || null;
 };
@@ -68,8 +80,13 @@ export const updateShipmentById = async (id, fields) => {
   const params = [];
   let idx = 1;
 
-  if (fields.status      !== undefined) { setClauses.push(`status      = $${idx++}`); params.push(fields.status);      }
-  if (fields.notes       !== undefined) { setClauses.push(`notes       = $${idx++}`); params.push(fields.notes);       }
+  if (fields.status              !== undefined) { setClauses.push(`status              = $${idx++}`); params.push(fields.status);              }
+  if (fields.notes               !== undefined) { setClauses.push(`notes               = $${idx++}`); params.push(fields.notes);               }
+  if (fields.invoice_status      !== undefined) { setClauses.push(`invoice_status      = $${idx++}`); params.push(fields.invoice_status);      }
+  if (fields.invoice_number      !== undefined) { setClauses.push(`invoice_number      = $${idx++}`); params.push(fields.invoice_number);      }
+  if (fields.invoice_date        !== undefined) { setClauses.push(`invoice_date        = $${idx++}`); params.push(fields.invoice_date);        }
+  if (fields.invoice_file_url    !== undefined) { setClauses.push(`invoice_file_url    = $${idx++}`); params.push(fields.invoice_file_url);    }
+  if (fields.hashavshevet_synced_at !== undefined) { setClauses.push(`hashavshevet_synced_at = $${idx++}`); params.push(fields.hashavshevet_synced_at); }
 
   if (!setClauses.length) return null;
 
@@ -96,16 +113,18 @@ export const createShipmentTransaction = async (shipmentData, items) => {
   try {
     await client.query('BEGIN');
 
+    // eligible_output_kg = Σ(weight × eligible_percent / 100) — the correct credit formula
     const eligible_output_kg = parseFloat(
-      items.reduce((sum, item) => sum + item.weight_kg, 0).toFixed(2)
+      items.reduce((sum, item) => sum + item.credit, 0).toFixed(2)
     );
 
     // Insert shipment — CTE so customer_name is returned immediately
     const { rows: [shipment] } = await client.query(
       `WITH ins AS (
          INSERT INTO shipments
-           (factory_id, customer_id, shipment_date, destination_address, eligible_output_kg, notes)
-         VALUES ($1, $2, $3, $4, $5, $6)
+           (factory_id, customer_id, shipment_date, destination_address,
+            delivery_note_number, lab_test_number, eligible_output_kg, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING *
        )
        SELECT ins.*, c.name AS customer_name
@@ -114,15 +133,19 @@ export const createShipmentTransaction = async (shipmentData, items) => {
       [
         shipmentData.factory_id, shipmentData.customer_id,
         shipmentData.shipment_date, shipmentData.destination_address,
+        shipmentData.delivery_note_number || null, shipmentData.lab_test_number || null,
         eligible_output_kg, shipmentData.notes || null,
       ]
     );
 
-    // Insert items and update batch used_weight_kg
+    // Insert items with per-item credit snapshot, update batch used_weight_kg
     for (const item of items) {
       await client.query(
-        `INSERT INTO shipment_items (shipment_id, batch_id, weight_kg) VALUES ($1, $2, $3)`,
-        [shipment.id, item.batch_id, item.weight_kg]
+        `INSERT INTO shipment_items
+           (shipment_id, batch_id, product_id, weight_kg, eligible_percent, credit)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [shipment.id, item.batch_id, item.product_id,
+         item.weight_kg, item.eligible_percent, item.credit]
       );
       await client.query(
         `UPDATE batches SET used_weight_kg = used_weight_kg + $1, updated_at = now() WHERE id = $2`,

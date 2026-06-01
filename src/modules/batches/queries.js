@@ -12,7 +12,7 @@ export const listBatches = async ({ factory_id, product_id, status, limit = 50, 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await pool.query(
-    `SELECT b.*, p.name AS product_name, p.sku AS product_sku
+    `SELECT b.*, p.name AS product_name, p.sku AS product_sku, p.eligible_percent
      FROM batches b
      JOIN products p ON p.id = b.product_id
      ${where}
@@ -25,7 +25,7 @@ export const listBatches = async ({ factory_id, product_id, status, limit = 50, 
 
 export const getBatchById = async (id) => {
   const { rows } = await pool.query(
-    `SELECT b.*, p.name AS product_name, p.sku AS product_sku
+    `SELECT b.*, p.name AS product_name, p.sku AS product_sku, p.eligible_percent
      FROM batches b
      JOIN products p ON p.id = b.product_id
      WHERE b.id = $1`,
@@ -36,7 +36,26 @@ export const getBatchById = async (id) => {
 
 export const getBatchWithComponents = async (id) => {
   const { rows } = await pool.query(
-    `SELECT b.*, p.name AS product_name, p.sku AS product_sku,
+    `SELECT b.*, p.name AS product_name, p.sku AS product_sku, p.eligible_percent,
+            (
+              SELECT COALESCE(
+                JSON_AGG(
+                  JSON_BUILD_OBJECT(
+                    'shipment_id', si.shipment_id,
+                    'weight_kg',   si.weight_kg,
+                    'credit',      si.credit,
+                    'shipment_date', s.shipment_date,
+                    'customer_name', cu.name,
+                    'status',      s.status
+                  ) ORDER BY s.shipment_date DESC
+                ) FILTER (WHERE si.id IS NOT NULL),
+                '[]'::json
+              )
+              FROM shipment_items si
+              JOIN shipments s  ON s.id  = si.shipment_id AND s.status != 'cancelled'
+              LEFT JOIN customers cu ON cu.id = s.customer_id
+              WHERE si.batch_id = b.id
+            ) AS usages,
             COALESCE(
               JSON_AGG(
                 JSON_BUILD_OBJECT(
@@ -63,7 +82,7 @@ export const getBatchWithComponents = async (id) => {
      LEFT JOIN batches src_b            ON src_b.id      = bc.source_id AND bc.source_type = 'batch'
      LEFT JOIN products src_p           ON src_p.id      = src_b.product_id
      WHERE b.id = $1
-     GROUP BY b.id, p.name, p.sku`,
+     GROUP BY b.id, p.name, p.sku, p.eligible_percent`,
     [id]
   );
   return rows[0] || null;

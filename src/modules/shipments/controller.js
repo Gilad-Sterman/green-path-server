@@ -34,6 +34,17 @@ export const createShipment = async (req, res, next) => {
   }
 };
 
+// POST /api/shipments/webhooks/hashavshevet — STUB: receives invoice data from חשבשבת
+export const receiveHashavshevetInvoice = async (req, res, next) => {
+  try {
+    const shipment = await shipmentsService.receiveHashavshevetInvoice(req.body);
+    return success(res, { shipment });
+  } catch (err) {
+    if (err.status) return error(res, 'webhook-error', err.message, err.status);
+    next(err);
+  }
+};
+
 // PATCH /api/shipments/:id/status
 export const updateShipmentStatus = async (req, res, next) => {
   try {

@@ -6,11 +6,20 @@ CREATE TABLE public.shipments (
   customer_id         uuid        NOT NULL REFERENCES public.customers(id),
   status              text        NOT NULL DEFAULT 'created'
                       CHECK (status IN ('created', 'shipped', 'delivered', 'cancelled')),
-  shipment_date       date        NOT NULL,
-  destination_address text        NOT NULL,
-  -- eligible_output_kg is calculated and stored at shipment creation time
-  eligible_output_kg  numeric     NOT NULL DEFAULT 0 CHECK (eligible_output_kg >= 0),
-  notes               text
+  shipment_date         date        NOT NULL,
+  destination_address   text        NOT NULL,
+  delivery_note_number  text,
+  lab_test_number       text,
+  -- eligible_output_kg is calculated (Σ weight × eligible_percent) and stored at creation time
+  eligible_output_kg    numeric     NOT NULL DEFAULT 0 CHECK (eligible_output_kg >= 0),
+  notes                 text,
+  -- חשבשבת ERP invoice integration
+  invoice_status        text        NOT NULL DEFAULT 'pending'
+                        CHECK (invoice_status IN ('pending', 'received', 'failed')),
+  invoice_number        text,
+  invoice_date          date,
+  invoice_file_url      text,
+  hashavshevet_synced_at timestamptz
 );
 
 CREATE TRIGGER set_shipments_updated_at

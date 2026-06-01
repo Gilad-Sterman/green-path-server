@@ -15,6 +15,10 @@ router.get('/:id', authenticate, anyStaff, shipmentsController.getShipment);
 // Create — manager and internal_admin only
 router.post('/', authenticate, managerOrAdmin, shipmentsController.createShipment);
 
+// Webhook — חשבשבת invoice callback (STUB — no auth yet, will add HMAC signature check)
+// TODO: add signature verification middleware when real חשבשבת connection is configured
+router.post('/webhooks/hashavshevet', shipmentsController.receiveHashavshevetInvoice);
+
 // Status transitions — manager and internal_admin only
 router.patch('/:id/status', authenticate, managerOrAdmin, shipmentsController.updateShipmentStatus);
 

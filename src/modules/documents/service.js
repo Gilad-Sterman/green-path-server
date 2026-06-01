@@ -5,8 +5,14 @@ import { uploadFile, getSignedUrl, getSignedUrls } from '../../utils/storage.js'
 import { analyzeDocument as runOcr } from '../../services/ocr.js';
 
 const ALLOWED_TYPES = ['delivery_note', 'invoice_in', 'invoice_out', 'lab_test', 'retro_invoice', 'weighing_document', 'other'];
-const ALLOWED_MIME  = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const ALLOWED_MIME  = [
+  'image/jpeg', 'image/png', 'image/webp', 'application/pdf',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+  'application/vnd.ms-excel',                                           // .xls
+  'text/csv',                                                            // .csv
+];
 const MAX_BYTES     = 30 * 1024 * 1024; // 30 MB
+const OCR_MIME      = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 const notFound   = (msg = 'Document not found.') => Object.assign(new Error(msg), { status: 404 });
 const badReq     = (msg)                          => Object.assign(new Error(msg), { status: 400 });
@@ -104,6 +110,9 @@ export const analyzeDocumentOnly = async (file) => {
   if (file.size > MAX_BYTES) throw badReq('File exceeds maximum size of 30 MB.');
   if (!ALLOWED_MIME.includes(file.mimetype)) {
     throw badReq(`Unsupported file type. Allowed: ${ALLOWED_MIME.join(', ')}`);
+  }
+  if (!OCR_MIME.includes(file.mimetype)) {
+    return { ocr_supported: false, fields: {} };
   }
   return runOcr(file.buffer, file.mimetype);
 };

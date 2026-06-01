@@ -1,6 +1,6 @@
 import {
   listShipments, getShipmentById, getShipmentWithItems,
-  updateShipmentById, createShipmentTransaction,
+  getShipmentByDeliveryNote, updateShipmentById, createShipmentTransaction,
 } from './queries.js';
 import { getBatchById } from '../batches/queries.js';
 import { linkDocumentsToEntity } from '../documents/queries.js';
@@ -46,7 +46,8 @@ export const getShipment = async (reqUser, id) => {
 };
 
 export const createShipment = async (reqUser, body, meta = {}) => {
-  const { customer_id, shipment_date, destination_address, notes, items } = body;
+  const { customer_id, shipment_date, destination_address, notes, items,
+          delivery_note_number, lab_test_number } = body;
 
   if (!customer_id)            throw badReq('customer_id is required.');
   if (!shipment_date)          throw badReq('shipment_date is required.');
@@ -54,6 +55,7 @@ export const createShipment = async (reqUser, body, meta = {}) => {
   if (!Array.isArray(items) || items.length === 0) {
     throw badReq('items must be a non-empty array of { batch_id, weight_kg }.');
   }
+  if (items.length > 10) throw badReq('A shipment cannot contain more than 10 batch lines.');
 
   const factory_id = reqUser.role === 'internal_admin'
     ? (body.factory_id || (() => { throw badReq('factory_id is required for internal_admin.'); })())
@@ -81,11 +83,34 @@ export const createShipment = async (reqUser, body, meta = {}) => {
       );
     }
 
-    resolvedItems.push({ batch_id: item.batch_id, weight_kg: itemWeight });
+    const eligiblePct = parseFloat(batch.eligible_percent || 0);
+    const credit      = parseFloat((itemWeight * eligiblePct / 100).toFixed(2));
+    resolvedItems.push({
+      batch_id:         item.batch_id,
+      product_id:       batch.product_id,
+      weight_kg:        itemWeight,
+      eligible_percent: eligiblePct,
+      credit,
+    });
+  }
+
+  const totalCredit = resolvedItems.reduce((s, it) => s + it.credit, 0);
+  if (totalCredit <= 0) {
+    throw badReq(
+      'לא ניתן ליצור משלוח ללא זיכוי. בדוק שאחוז הזכאות של התוצ"ג גדול מ-0.'
+    );
   }
 
   const result = await createShipmentTransaction(
-    { factory_id, customer_id, shipment_date, destination_address: destination_address.trim(), notes },
+    {
+      factory_id,
+      customer_id,
+      shipment_date,
+      destination_address:  destination_address.trim(),
+      delivery_note_number: delivery_note_number || null,
+      lab_test_number:      lab_test_number      || null,
+      notes,
+    },
     resolvedItems
   );
 
@@ -114,6 +139,38 @@ export const createShipment = async (reqUser, body, meta = {}) => {
   });
 
   return result;
+};
+
+/**
+ * STUB — חשבשבת webhook receiver.
+ * Will be called when חשבשבת pushes an invoice back (or during polling).
+ * Matches the shipment via delivery_note_number (the anchor), stores invoice data.
+ * TODO: validate HMAC signature from חשבשבת when the real integration is wired.
+ */
+export const receiveHashavshevetInvoice = async (body) => {
+  const { delivery_note_number, invoice_number, invoice_date, invoice_file_url } = body;
+
+  if (!delivery_note_number) throw badReq('delivery_note_number is required.');
+  if (!invoice_number)       throw badReq('invoice_number is required.');
+
+  // Find matching shipment by delivery_note_number
+  const shipment = await getShipmentByDeliveryNote(delivery_note_number);
+  if (!shipment) {
+    throw Object.assign(
+      new Error(`No shipment found with delivery_note_number: ${delivery_note_number}`),
+      { status: 404 }
+    );
+  }
+
+  const updated = await updateShipmentById(shipment.id, {
+    invoice_status:         'received',
+    invoice_number,
+    invoice_date:           invoice_date   || null,
+    invoice_file_url:       invoice_file_url || null,
+    hashavshevet_synced_at: new Date().toISOString(),
+  });
+
+  return updated;
 };
 
 export const updateShipmentStatus = async (reqUser, id, body, meta = {}) => {
