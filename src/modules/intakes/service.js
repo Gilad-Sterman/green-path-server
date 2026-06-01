@@ -6,7 +6,7 @@ import { linkDocumentsToEntity } from '../documents/queries.js';
 import { insertFlag } from '../flags/queries.js';
 import { logAudit } from '../../services/audit.js';
 
-const MATERIAL_TYPES   = ['plastic', 'paper', 'metal', 'glass', 'textile', 'rubber', 'mixed', 'other'];
+const MATERIAL_TYPES   = ['PET', 'HDPE', 'PP', 'LDPE', 'PVC', 'PE', 'mixed', 'other'];
 const MATERIAL_SOURCES = ['post_consumer', 'post_industrial', 'commercial', 'municipal', 'other'];
 const MATERIAL_STATUSES = ['recycled', 'virgin', 'mixed'];
 

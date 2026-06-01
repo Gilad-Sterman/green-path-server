@@ -4,7 +4,7 @@ const notFound  = (msg = 'Product not found.')    => Object.assign(new Error(msg
 const badReq    = (msg)                            => Object.assign(new Error(msg), { status: 400 });
 const conflict  = (msg)                            => Object.assign(new Error(msg), { status: 409 });
 
-const VALID_MATERIAL_TYPES = ['PET', 'HDPE', 'PP', 'LDPE', 'PVC', 'mixed', 'other', 'virgin'];
+const VALID_MATERIAL_TYPES = ['PET', 'HDPE', 'PP', 'LDPE', 'PVC', 'PE', 'mixed', 'other', 'virgin'];
 
 const computeEligiblePercent = (recipe) =>
   recipe.reduce((s, r) => s + (r.is_recycled ? parseFloat(r.percent) : 0), 0);
