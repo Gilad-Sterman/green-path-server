@@ -14,8 +14,8 @@ router.get('/generate-code', authenticate, anyStaff, batchesController.generateC
 router.get('/sources',       authenticate, anyStaff, batchesController.getAvailableSources);
 router.get('/:id',           authenticate, anyStaff, batchesController.getBatch);
 
-// Write — manager and internal_admin only
-router.post('/',               authenticate, managerOrAdmin, batchesController.createBatch);
+// Write — all staff can create; management transitions are manager-only
+router.post('/',               authenticate, anyStaff,       batchesController.createBatch);
 router.patch('/:id/complete',  authenticate, managerOrAdmin, batchesController.completeBatch);
 router.patch('/:id/cancel',    authenticate, managerOrAdmin, batchesController.cancelBatch);
 router.patch('/:id/block',     authenticate, managerOrAdmin, batchesController.blockBatch);

@@ -6,7 +6,8 @@ import * as usersController from './controller.js';
 const router = Router();
 
 // Current user — any authenticated role
-router.get('/me', authenticate, usersController.getMe);
+router.get('/me',              authenticate, usersController.getMe);
+router.post('/me/deactivate',  authenticate, usersController.deactivateSelf);
 
 // User management — manager and internal_admin only
 router.get('/',                   authenticate, requireRole('manager', 'internal_admin'), usersController.listUsers);

@@ -12,8 +12,8 @@ const anyStaff       = requireRole('employee', 'manager', 'internal_admin');
 router.get('/',    authenticate, anyStaff, shipmentsController.listShipments);
 router.get('/:id', authenticate, anyStaff, shipmentsController.getShipment);
 
-// Create — manager and internal_admin only
-router.post('/', authenticate, managerOrAdmin, shipmentsController.createShipment);
+// Create — all staff can create; status transitions are manager-only
+router.post('/', authenticate, anyStaff, shipmentsController.createShipment);
 
 // Webhook — חשבשבת invoice callback (STUB — no auth yet, will add HMAC signature check)
 // TODO: add signature verification middleware when real חשבשבת connection is configured

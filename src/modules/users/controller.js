@@ -1,6 +1,17 @@
 import { success, error } from '../../utils/response.js';
 import * as usersService from './service.js';
 
+// POST /api/users/me/deactivate
+export const deactivateSelf = async (req, res, next) => {
+  try {
+    await usersService.deactivateSelf(req.user.user_id);
+    res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'lax', path: '/' });
+    return success(res, null);
+  } catch (err) {
+    next(err);
+  }
+};
+
 // GET /api/users/me
 export const getMe = async (req, res, next) => {
   try {

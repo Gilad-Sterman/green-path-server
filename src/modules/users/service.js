@@ -78,6 +78,10 @@ export const updateUser = async (reqUser, id, body) => {
   return updateUserById(id, allowed);
 };
 
+export const deactivateSelf = async (userId) => {
+  return updateUserById(userId, { is_active: false });
+};
+
 export const deactivateUser = async (reqUser, id) => {
   if (id === reqUser.user_id) throw forbidden('You cannot deactivate your own account.');
   return updateUser(reqUser, id, { is_active: false });
