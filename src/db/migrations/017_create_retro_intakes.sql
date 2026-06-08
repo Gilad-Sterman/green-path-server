@@ -9,10 +9,10 @@ CREATE TABLE public.retro_intakes (
   period_start    date        NOT NULL,
   period_end      date        NOT NULL,
   status          text        NOT NULL DEFAULT 'processing'
-                  CHECK (status IN ('processing', 'completed', 'rejected')),
+                  CHECK (status IN ('processing', 'completed', 'completed_with_errors', 'rejected', 'failed')),
   documents_count integer     NOT NULL DEFAULT 0,
   notes           text,
-  CONSTRAINT retro_period_valid CHECK (period_end > period_start)
+  CONSTRAINT retro_period_valid CHECK (period_end >= period_start)
 );
 
 CREATE TRIGGER set_retro_intakes_updated_at
