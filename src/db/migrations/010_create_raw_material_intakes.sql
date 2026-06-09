@@ -20,6 +20,9 @@ CREATE TABLE public.raw_material_intakes (
   location_status        text,                   -- 'in_factory' | 'out_of_factory' | 'unknown'
   notes                  text,
   created_by             uuid        REFERENCES public.users(id),
+  -- Internal weighing: factory re-weighs material after arrival
+  has_internal_weighing  boolean     NOT NULL DEFAULT false,
+  internal_weight_kg     numeric     CHECK (internal_weight_kg > 0),
   -- Duplicate delivery notes blocked per supplier per factory
   UNIQUE (factory_id, supplier_id, delivery_note_number)
 );

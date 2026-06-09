@@ -102,6 +102,52 @@ export const insertIntake = async ({
   }
 };
 
+export const getUsedWeightByIntake = async (intake_id) => {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(SUM(weight_kg), 0)::numeric AS used_weight
+     FROM batch_components
+     WHERE source_type = 'intake' AND source_id = $1`,
+    [intake_id]
+  );
+  return parseFloat(rows[0].used_weight);
+};
+
+export const insertInternalWeighing = async ({
+  intake_id, factory_id, document_id, measured_weight, weighing_date, source_type, notes, created_by,
+}) => {
+  const { rows } = await pool.query(
+    `INSERT INTO internal_weighing_records
+       (intake_id, factory_id, document_id, measured_weight, weighing_date, source_type, notes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [intake_id, factory_id, document_id || null, measured_weight, weighing_date, source_type || 'manual', notes || null, created_by || null]
+  );
+  return rows[0];
+};
+
+export const getWeighingsByIntake = async (intake_id) => {
+  const { rows } = await pool.query(
+    `SELECT iwr.*, u.full_name AS created_by_name
+     FROM internal_weighing_records iwr
+     LEFT JOIN users u ON u.id = iwr.created_by
+     WHERE iwr.intake_id = $1
+     ORDER BY iwr.created_at DESC`,
+    [intake_id]
+  );
+  return rows;
+};
+
+export const updateIntakeInternalWeight = async (id, measured_weight) => {
+  const { rows } = await pool.query(
+    `UPDATE raw_material_intakes
+     SET internal_weight_kg = $1, has_internal_weighing = true, updated_at = now()
+     WHERE id = $2
+     RETURNING *`,
+    [measured_weight, id]
+  );
+  return rows[0] || null;
+};
+
 export const updateIntakeById = async (id, fields) => {
   const setClauses = [];
   const params = [];

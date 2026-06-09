@@ -37,7 +37,8 @@ export const uploadDocument = async (req, res, next) => {
 // POST /api/documents/analyze
 export const analyzeDocument = async (req, res, next) => {
   try {
-    const result = await documentsService.analyzeDocumentOnly(req.file);
+    const documentType = req.body?.document_type || 'intake';
+    const result = await documentsService.analyzeDocumentOnly(req.file, documentType);
     return success(res, result);
   } catch (err) {
     if (err.status) return error(res, err.code || 'ocr-error', err.message, err.status);

@@ -18,4 +18,8 @@ router.post('/', authenticate, anyStaff, intakesController.createIntake);
 // Update — manager and internal_admin only (corrections after review)
 router.patch('/:id', authenticate, managerOrAdmin, intakesController.updateIntake);
 
+// Internal weighing — manager and internal_admin only
+router.post('/:id/weighings', authenticate, managerOrAdmin, intakesController.addWeighing);
+router.get('/:id/weighings',  authenticate, managerOrAdmin, intakesController.listWeighings);
+
 export default router;

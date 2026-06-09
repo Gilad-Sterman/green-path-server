@@ -1,4 +1,4 @@
-import { getUserById, getUserByPhone, listUsers, insertUser, updateUserById, deleteUserById } from './queries.js';
+import { getUserById, getUserByPhone, listUsers, insertUser, updateUserById, deleteUserById, countActiveManagers } from './queries.js';
 
 const VALID_ROLES = ['employee', 'manager', 'internal_admin'];
 
@@ -84,6 +84,14 @@ export const deactivateSelf = async (userId) => {
 
 export const deactivateUser = async (reqUser, id) => {
   if (id === reqUser.user_id) throw forbidden('You cannot deactivate your own account.');
+  const target = await getUserById(id);
+  if (!target) throw notFound();
+  if (target.role === 'manager' && target.factory_id) {
+    const activeCount = await countActiveManagers(target.factory_id);
+    if (activeCount <= 1) {
+      throw forbidden('לא ניתן להשבית את המנהל היחיד הפעיל במפעל.');
+    }
+  }
   return updateUser(reqUser, id, { is_active: false });
 };
 
@@ -98,6 +106,12 @@ export const deleteUser = async (reqUser, id) => {
   if (reqUser.role === 'manager') {
     if (target.factory_id !== reqUser.factory_id) throw notFound();
     if (target.role !== 'employee') throw forbidden('Managers can only delete employee accounts.');
+  }
+  if (target.role === 'manager' && target.factory_id) {
+    const activeCount = await countActiveManagers(target.factory_id);
+    if (activeCount <= 1) {
+      throw forbidden('לא ניתן למחוק את המנהל היחיד הפעיל במפעל.');
+    }
   }
   await deleteUserById(id);
 };

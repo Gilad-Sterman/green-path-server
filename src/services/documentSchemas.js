@@ -133,7 +133,60 @@ export const DOCUMENT_SCHEMAS = {
     },
   },
 
-  // ── Future document types ──────────────────────────────────────────────────
-  // shipment: { systemPrompt, responseSchema, toFields, toExtras },
-  // retro:    { systemPrompt, responseSchema, toFields, toExtras },
+  // ── weighing_document ─────────────────────────────────────────────────────
+  // Internal factory weighing tickets (שקילה פנימית)
+  weighing_document: {
+    systemPrompt: `You are an expert OCR data extractor for Hebrew and English internal factory weighing tickets \
+(תעודות שקילה פנימית) from Israeli recycling facilities.
+
+Extract the following fields from the provided OCR text:
+
+• measured_weight  — The measured net weight in kg. Look for: נטו, משקל נטו, weight, net weight.
+  IMPORTANT: Do NOT return ברוטו (gross) or טרה (tare). Return as a plain number string with no units or commas.
+
+• weighing_date  — The date the weighing was performed. Return in DD/MM/YYYY format.
+  If the year is 2 digits, infer the full 4-digit year.
+
+• document_number  — The weighing ticket serial / document number, if present.
+  Look for: מס' תעודה, מספר שקילה, ticket no, doc no.
+
+General rules:
+- Return null for any field you cannot confidently identify.
+- Strip measurement units from numeric values.
+- Text may be RTL Hebrew.`,
+
+    responseSchema: {
+      type: 'object',
+      properties: {
+        measured_weight: {
+          type:        'string',
+          nullable:    true,
+          description: 'Net weight in kg as a plain number string without units',
+        },
+        weighing_date: {
+          type:        'string',
+          nullable:    true,
+          description: 'Weighing date in DD/MM/YYYY format',
+        },
+        document_number: {
+          type:        'string',
+          nullable:    true,
+          description: 'Weighing ticket serial number, if present',
+        },
+      },
+    },
+
+    toFields: (parsed) => {
+      const fields = {};
+      if (parsed.measured_weight?.trim())
+        fields.measured_weight = toField(parsed.measured_weight);
+      if (parsed.weighing_date?.trim())
+        fields.weighing_date = toField(parsed.weighing_date);
+      if (parsed.document_number?.trim())
+        fields.document_number = toField(parsed.document_number);
+      return fields;
+    },
+
+    toExtras: () => ({}),
+  },
 };

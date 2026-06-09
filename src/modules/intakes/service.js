@@ -1,6 +1,7 @@
 import {
   listIntakes, getIntakeById, checkDuplicateDeliveryNote,
   insertIntake, updateIntakeById,
+  insertInternalWeighing, getWeighingsByIntake, getUsedWeightByIntake, updateIntakeInternalWeight,
 } from './queries.js';
 import { linkDocumentsToEntity } from '../documents/queries.js';
 import { insertFlag } from '../flags/queries.js';
@@ -136,6 +137,79 @@ export const createIntake = async (reqUser, body, meta = {}) => {
   });
 
   return intake;
+};
+
+export const addWeighing = async (reqUser, intake_id, body, meta = {}) => {
+  const intake = await getIntakeById(intake_id);
+  if (!intake) throw notFound();
+  assertFactoryAccess(reqUser, intake);
+
+  const measured_weight = parseFloat(body.measured_weight);
+  if (isNaN(measured_weight) || measured_weight <= 0) {
+    throw badReq('יש להזין משקל תקין וגדול מאפס.');
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const weighing_date = body.weighing_date;
+  if (!weighing_date) throw badReq('יש להזין תאריך שקילה.');
+  if (weighing_date > today) throw badReq('תאריך שקילה לא יכול להיות בעתיד.');
+
+  const usedWeight = await getUsedWeightByIntake(intake_id);
+  if (measured_weight < usedWeight) {
+    throw badReq(
+      `לא ניתן לעדכן משקל לערך נמוך מהמשקל שכבר שויך לאצוות (${usedWeight} ק"ג).`
+    );
+  }
+
+  const source_type = body.source_type || 'manual';
+  if (!['ocr', 'manual', 'ocr_edited'].includes(source_type)) {
+    throw badReq('source_type must be one of: ocr, manual, ocr_edited.');
+  }
+
+  const record = await insertInternalWeighing({
+    intake_id,
+    factory_id:     intake.factory_id,
+    document_id:    body.document_id  || null,
+    measured_weight,
+    weighing_date,
+    source_type,
+    notes:          body.notes        || null,
+    created_by:     reqUser.user_id,
+  });
+
+  await updateIntakeInternalWeight(intake_id, measured_weight);
+
+  const originalWeight = parseFloat(intake.net_weight_kg);
+  const discrepancyPct = Math.abs(measured_weight - originalWeight) / originalWeight * 100;
+  if (discrepancyPct >= 5) {
+    insertFlag({
+      factory_id:  intake.factory_id,
+      entity_type: 'intake',
+      entity_id:   intake_id,
+      reason:      'weight-discrepancy',
+      severity:    discrepancyPct >= 15 ? 'high' : 'medium',
+    }).catch(() => {});
+  }
+
+  logAudit({
+    action:      'intake.internal_weighing_added',
+    entity_type: 'intake',
+    entity_id:   intake_id,
+    factory_id:  intake.factory_id,
+    user_id:     reqUser.user_id,
+    new_value:   { measured_weight, weighing_date, source_type },
+    ip_address:  meta.ip,
+    user_agent:  meta.userAgent,
+  });
+
+  return record;
+};
+
+export const getWeighings = async (reqUser, intake_id) => {
+  const intake = await getIntakeById(intake_id);
+  if (!intake) throw notFound();
+  assertFactoryAccess(reqUser, intake);
+  return getWeighingsByIntake(intake_id);
 };
 
 export const updateIntake = async (reqUser, id, body, meta = {}) => {

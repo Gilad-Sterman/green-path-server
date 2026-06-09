@@ -22,7 +22,7 @@ export const listCredits = async ({ factory_id, kind, source_type, limit = 50, o
   return rows;
 };
 
-export const getCreditsSummaryByFactory = async (factory_id) => {
+export const getCreditsSummaryByFactory = async (factory_id, { date_from, date_to } = {}) => {
   const { rows } = await pool.query(
     `SELECT
        COALESCE(SUM(eligible_output_kg), 0)                                         AS total_credits_kg,
@@ -32,8 +32,10 @@ export const getCreditsSummaryByFactory = async (factory_id) => {
        (SELECT COALESCE(SUM(eligible_weight_kg), 0)
         FROM raw_material_intakes WHERE factory_id = $1)                            AS total_eligible_input_kg
      FROM credits_ledger
-     WHERE factory_id = $1`,
-    [factory_id]
+     WHERE factory_id = $1
+       AND ($2::timestamptz IS NULL OR created_at >= $2)
+       AND ($3::timestamptz IS NULL OR created_at <= $3)`,
+    [factory_id, date_from || null, date_to || null]
   );
   const row = rows[0];
   return {

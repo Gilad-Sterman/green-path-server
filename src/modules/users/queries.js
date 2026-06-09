@@ -65,6 +65,16 @@ export const insertUser = async ({ phone_number, full_name, role, factory_id }) 
   return rows[0];
 };
 
+export const countActiveManagers = async (factory_id) => {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*)::integer AS cnt
+     FROM users
+     WHERE factory_id = $1 AND role = 'manager' AND is_active = true`,
+    [factory_id]
+  );
+  return rows[0].cnt;
+};
+
 export const deleteUserById = async (id) => {
   await pool.query('DELETE FROM refresh_tokens WHERE user_id = $1', [id]);
   await pool.query('DELETE FROM users WHERE id = $1', [id]);

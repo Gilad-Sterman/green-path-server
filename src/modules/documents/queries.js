@@ -61,6 +61,15 @@ export const insertDocument = async ({
   return rows[0];
 };
 
+export const getDocumentsByIds = async (ids) => {
+  if (!ids?.length) return [];
+  const { rows } = await pool.query(
+    `SELECT id, document_type, factory_id FROM documents WHERE id = ANY($1::uuid[])`,
+    [ids]
+  );
+  return rows;
+};
+
 export const linkDocumentsToEntity = async (ids, entity_type, entity_id, factory_id) => {
   if (!ids?.length) return;
   await pool.query(

@@ -105,7 +105,7 @@ export const approveDocument = async (reqUser, id, body) => {
   });
 };
 
-export const analyzeDocumentOnly = async (file) => {
+export const analyzeDocumentOnly = async (file, documentType = 'intake') => {
   if (!file) throw badReq('No file provided.');
   if (file.size > MAX_BYTES) throw badReq('File exceeds maximum size of 30 MB.');
   if (!ALLOWED_MIME.includes(file.mimetype)) {
@@ -114,7 +114,7 @@ export const analyzeDocumentOnly = async (file) => {
   if (!OCR_MIME.includes(file.mimetype)) {
     return { ocr_supported: false, fields: {} };
   }
-  return runOcr(file.buffer, file.mimetype);
+  return runOcr(file.buffer, file.mimetype, documentType);
 };
 
 export const rejectDocument = async (reqUser, id, body) => {

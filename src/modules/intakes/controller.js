@@ -34,6 +34,31 @@ export const createIntake = async (req, res, next) => {
   }
 };
 
+// POST /api/intakes/:id/weighings
+export const addWeighing = async (req, res, next) => {
+  try {
+    const record = await intakesService.addWeighing(
+      req.user, req.params.id, req.body,
+      { ip: req.ip, userAgent: req.headers['user-agent'] }
+    );
+    return success(res, { record }, {}, 201);
+  } catch (err) {
+    if (err.status) return error(res, 'intake-error', err.message, err.status);
+    next(err);
+  }
+};
+
+// GET /api/intakes/:id/weighings
+export const listWeighings = async (req, res, next) => {
+  try {
+    const weighings = await intakesService.getWeighings(req.user, req.params.id);
+    return success(res, { weighings, count: weighings.length });
+  } catch (err) {
+    if (err.status) return error(res, 'intake-error', err.message, err.status);
+    next(err);
+  }
+};
+
 // PATCH /api/intakes/:id
 export const updateIntake = async (req, res, next) => {
   try {

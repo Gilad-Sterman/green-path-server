@@ -3,7 +3,7 @@ import {
   getShipmentByDeliveryNote, updateShipmentById, createShipmentTransaction,
 } from './queries.js';
 import { getBatchById } from '../batches/queries.js';
-import { linkDocumentsToEntity } from '../documents/queries.js';
+import { linkDocumentsToEntity, getDocumentsByIds } from '../documents/queries.js';
 import { insertFlag } from '../flags/queries.js';
 import { logAudit } from '../../services/audit.js';
 
@@ -115,17 +115,20 @@ export const createShipment = async (reqUser, body, meta = {}) => {
   );
 
   const { document_ids } = body;
-  if (Array.isArray(document_ids) && document_ids.length > 0) {
-    await linkDocumentsToEntity(document_ids, 'shipment', result.shipment.id, factory_id);
-  } else {
-    insertFlag({
-      factory_id,
-      entity_type: 'shipment',
-      entity_id:   result.shipment.id,
-      reason:      'missing-document',
-      severity:    'medium',
-    }).catch(() => {});
+  if (!Array.isArray(document_ids) || document_ids.length === 0) {
+    throw badReq('יש לצרף בדיקת מעבדה ותעודת משלוח לפני יצירת המשלוח.');
   }
+
+  const uploadedDocs = await getDocumentsByIds(document_ids);
+  const docTypes     = uploadedDocs.map((d) => d.document_type);
+  if (!docTypes.includes('lab_test')) {
+    throw badReq('מסמך בדיקת מעבדה חסר. יש לצרף בדיקת מעבדה לפני יצירת המשלוח.');
+  }
+  if (!docTypes.includes('delivery_note')) {
+    throw badReq('תעודת משלוח חסרה. יש לצרף תעודת משלוח לפני יצירת המשלוח.');
+  }
+
+  await linkDocumentsToEntity(document_ids, 'shipment', result.shipment.id, factory_id);
 
   logAudit({
     action:      'shipment.created',
