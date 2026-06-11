@@ -63,10 +63,9 @@ export const getProduct = async (reqUser, id) => {
 };
 
 export const createProduct = async (reqUser, body) => {
-  const { name, sku, description, required_lab_tests, material_recipe } = body;
+  const { name, description, required_lab_tests, material_recipe, is_active = true } = body;
 
   if (!name?.trim()) throw badReq('name is required.');
-  if (!sku?.trim())  throw badReq('sku is required.');
   if (required_lab_tests && !Array.isArray(required_lab_tests))
     throw badReq('required_lab_tests must be an array of strings.');
 
@@ -76,17 +75,19 @@ export const createProduct = async (reqUser, body) => {
     ? (body.factory_id || (() => { throw badReq('factory_id is required for internal_admin.'); })())
     : reqUser.factory_id;
 
-  const existing = await getProductBySku(factory_id, sku.trim().toUpperCase());
-  if (existing) throw conflict(`A product with SKU "${sku}" already exists in this factory.`);
+  // const existing = await getProductBySku(factory_id, sku.trim().toUpperCase());
+  // if (existing) throw conflict(`A product with SKU "${sku}" already exists in this factory.`);
+
 
   return insertProduct({
     factory_id,
     name:             name.trim(),
-    sku:              sku.trim().toUpperCase(),
+    // sku:              sku.trim().toUpperCase(),
     description,
     required_lab_tests,
     material_recipe,
     eligible_percent: computeEligiblePercent(material_recipe),
+    is_active,
   });
 };
 
@@ -104,6 +105,8 @@ export const updateProduct = async (reqUser, id, body) => {
     allowed.material_recipe  = body.material_recipe;
     allowed.eligible_percent = computeEligiblePercent(body.material_recipe);
   }
+
+  if (body.is_active !== undefined) allowed.is_active = body.is_active;
 
   return updateProductById(id, allowed);
 };

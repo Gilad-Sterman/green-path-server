@@ -53,7 +53,7 @@ export const checkDuplicateDeliveryNote = async (factory_id, supplier_id, delive
 };
 
 export const insertIntake = async ({
-  factory_id, supplier_id, material_type, material_source, material_status,
+  factory_id, supplier_id, material_type, is_recycled,
   net_weight_kg, eligible_input_percent, intake_date, delivery_note_number,
   data_entry_profile, location_status, notes, created_by,
 }) => {
@@ -63,13 +63,13 @@ export const insertIntake = async ({
 
     const { rows: [raw] } = await client.query(
       `INSERT INTO raw_material_intakes
-         (factory_id, supplier_id, material_type, material_source, material_status,
+         (factory_id, supplier_id, material_type, is_recycled,
           net_weight_kg, eligible_input_percent, intake_date, delivery_note_number,
           data_entry_profile, location_status, notes, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
-        factory_id, supplier_id, material_type, material_source, material_status,
+        factory_id, supplier_id, material_type, is_recycled,
         net_weight_kg, eligible_input_percent ?? 100, intake_date, delivery_note_number,
         data_entry_profile || null, location_status || null, notes || null,
         created_by || null,

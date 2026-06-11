@@ -5,8 +5,7 @@ CREATE TABLE public.raw_material_intakes (
   factory_id             uuid        NOT NULL REFERENCES public.factories(id),
   supplier_id            uuid        NOT NULL REFERENCES public.suppliers(id),
   material_type          text        NOT NULL,
-  material_source        text        NOT NULL,   -- e.g. 'post_consumer', 'post_industrial'
-  material_status        text        NOT NULL,   -- e.g. 'recycled', 'virgin'
+  is_recycled            boolean     NOT NULL DEFAULT false,  
   net_weight_kg          numeric     NOT NULL CHECK (net_weight_kg > 0),
   eligible_input_percent numeric     NOT NULL DEFAULT 100
                          CHECK (eligible_input_percent >= 0 AND eligible_input_percent <= 100),

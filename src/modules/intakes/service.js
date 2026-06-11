@@ -7,13 +7,13 @@ import { linkDocumentsToEntity } from '../documents/queries.js';
 import { insertFlag } from '../flags/queries.js';
 import { logAudit } from '../../services/audit.js';
 
-const MATERIAL_TYPES   = ['PET', 'HDPE', 'PP', 'LDPE', 'PVC', 'PE', 'mixed', 'other'];
+const MATERIAL_TYPES = ['PET', 'HDPE', 'PP', 'LDPE', 'PVC', 'PE', 'mixed', 'other'];
 const MATERIAL_SOURCES = ['post_consumer', 'post_industrial', 'commercial', 'municipal', 'other'];
 const MATERIAL_STATUSES = ['recycled', 'virgin', 'mixed'];
 
-const notFound  = (msg = 'Intake not found.')  => Object.assign(new Error(msg), { status: 404 });
-const badReq    = (msg)                         => Object.assign(new Error(msg), { status: 400 });
-const conflict  = (msg)                         => Object.assign(new Error(msg), { status: 409 });
+const notFound = (msg = 'Intake not found.') => Object.assign(new Error(msg), { status: 404 });
+const badReq = (msg) => Object.assign(new Error(msg), { status: 400 });
+const conflict = (msg) => Object.assign(new Error(msg), { status: 409 });
 
 const resolveFactoryId = (reqUser, queryFactoryId) => {
   if (reqUser.role === 'internal_admin') return queryFactoryId || undefined;
@@ -30,13 +30,13 @@ export const getIntakes = async (reqUser, query) => {
   const { supplier_id, material_type, date_from, date_to, limit, offset, factory_id: qFactory } = query;
 
   return listIntakes({
-    factory_id:   resolveFactoryId(reqUser, qFactory),
-    supplier_id:  supplier_id   || undefined,
+    factory_id: resolveFactoryId(reqUser, qFactory),
+    supplier_id: supplier_id || undefined,
     material_type: material_type || undefined,
-    date_from:    date_from     || undefined,
-    date_to:      date_to       || undefined,
-    limit:        Math.min(parseInt(limit) || 50, 200),
-    offset:       parseInt(offset) || 0,
+    date_from: date_from || undefined,
+    date_to: date_to || undefined,
+    limit: Math.min(parseInt(limit) || 50, 200),
+    offset: parseInt(offset) || 0,
   });
 };
 
@@ -49,39 +49,31 @@ export const getIntake = async (reqUser, id) => {
 
 export const createIntake = async (reqUser, body, meta = {}) => {
   const {
-    supplier_id, material_type, material_source, material_status,
-    net_weight_kg, eligible_input_percent, intake_date, delivery_note_number,
+    supplier_id, material_type, is_recycled,
+    net_weight_kg, intake_date, delivery_note_number,
     data_entry_profile, location_status, notes,
   } = body;
 
   // Required field validation
-  if (!supplier_id)           throw badReq('supplier_id is required.');
-  if (!material_type)         throw badReq('material_type is required.');
-  if (!material_source)       throw badReq('material_source is required.');
-  if (!material_status)       throw badReq('material_status is required.');
-  if (!net_weight_kg)         throw badReq('net_weight_kg is required.');
-  if (!intake_date)           throw badReq('intake_date is required.');
+  if (!supplier_id) throw badReq('supplier_id is required.');
+  if (!material_type) throw badReq('material_type is required.');
+  // if (!material_source)       throw badReq('material_source is required.');
+  // if (!material_status)       throw badReq('material_status is required.');
+  if (!net_weight_kg) throw badReq('net_weight_kg is required.');
+  if (!intake_date) throw badReq('intake_date is required.');
   if (!delivery_note_number?.trim()) throw badReq('delivery_note_number is required.');
 
   // Enum validation
   if (!MATERIAL_TYPES.includes(material_type)) {
     throw badReq(`material_type must be one of: ${MATERIAL_TYPES.join(', ')}`);
   }
-  if (!MATERIAL_SOURCES.includes(material_source)) {
-    throw badReq(`material_source must be one of: ${MATERIAL_SOURCES.join(', ')}`);
-  }
-  if (!MATERIAL_STATUSES.includes(material_status)) {
-    throw badReq(`material_status must be one of: ${MATERIAL_STATUSES.join(', ')}`);
-  }
+  if (typeof is_recycled !== 'boolean') throw badReq('is_recycled must be a boolean.');
 
   // Weight validation
   const weight = parseFloat(net_weight_kg);
   if (isNaN(weight) || weight <= 0) throw badReq('net_weight_kg must be a positive number.');
 
-  const eligiblePct = eligible_input_percent !== undefined ? parseFloat(eligible_input_percent) : 100;
-  if (isNaN(eligiblePct) || eligiblePct < 0 || eligiblePct > 100) {
-    throw badReq('eligible_input_percent must be between 0 and 100.');
-  }
+  const eligiblePct = is_recycled ? 100 : 0;
 
   // Date must not be in the future
   const today = new Date().toISOString().split('T')[0];
@@ -95,13 +87,13 @@ export const createIntake = async (reqUser, body, meta = {}) => {
   const duplicate = await checkDuplicateDeliveryNote(factory_id, supplier_id, delivery_note_number.trim());
   if (duplicate) {
     throw conflict(
-      `Delivery note "${delivery_note_number}" already exists for this supplier and factory. Possible duplicate intake.`
+      'שימו לב: נמצאה קליטה דומה במערכת. יש לוודא שלא מדובר ברישום כפול.'
     );
   }
 
   const intake = await insertIntake({
     factory_id, supplier_id,
-    material_type, material_source, material_status,
+    material_type, is_recycled,
     net_weight_kg: weight,
     eligible_input_percent: eligiblePct,
     intake_date,
@@ -119,21 +111,21 @@ export const createIntake = async (reqUser, body, meta = {}) => {
     insertFlag({
       factory_id,
       entity_type: 'intake',
-      entity_id:   intake.id,
-      reason:      'missing-document',
-      severity:    'medium',
-    }).catch(() => {});
+      entity_id: intake.id,
+      reason: 'missing-document',
+      severity: 'medium',
+    }).catch(() => { });
   }
 
   logAudit({
-    action:      'intake.created',
+    action: 'intake.created',
     entity_type: 'intake',
-    entity_id:   intake.id,
-    factory_id:  intake.factory_id,
-    user_id:     reqUser.user_id,
-    new_value:   intake,
-    ip_address:  meta.ip,
-    user_agent:  meta.userAgent,
+    entity_id: intake.id,
+    factory_id: intake.factory_id,
+    user_id: reqUser.user_id,
+    new_value: intake,
+    ip_address: meta.ip,
+    user_agent: meta.userAgent,
   });
 
   return intake;
@@ -168,13 +160,13 @@ export const addWeighing = async (reqUser, intake_id, body, meta = {}) => {
 
   const record = await insertInternalWeighing({
     intake_id,
-    factory_id:     intake.factory_id,
-    document_id:    body.document_id  || null,
+    factory_id: intake.factory_id,
+    document_id: body.document_id || null,
     measured_weight,
     weighing_date,
     source_type,
-    notes:          body.notes        || null,
-    created_by:     reqUser.user_id,
+    notes: body.notes || null,
+    created_by: reqUser.user_id,
   });
 
   await updateIntakeInternalWeight(intake_id, measured_weight);
@@ -183,23 +175,23 @@ export const addWeighing = async (reqUser, intake_id, body, meta = {}) => {
   const discrepancyPct = Math.abs(measured_weight - originalWeight) / originalWeight * 100;
   if (discrepancyPct >= 5) {
     insertFlag({
-      factory_id:  intake.factory_id,
+      factory_id: intake.factory_id,
       entity_type: 'intake',
-      entity_id:   intake_id,
-      reason:      'weight-discrepancy',
-      severity:    discrepancyPct >= 15 ? 'high' : 'medium',
-    }).catch(() => {});
+      entity_id: intake_id,
+      reason: 'weight-discrepancy',
+      severity: discrepancyPct >= 15 ? 'high' : 'medium',
+    }).catch(() => { });
   }
 
   logAudit({
-    action:      'intake.internal_weighing_added',
+    action: 'intake.internal_weighing_added',
     entity_type: 'intake',
-    entity_id:   intake_id,
-    factory_id:  intake.factory_id,
-    user_id:     reqUser.user_id,
-    new_value:   { measured_weight, weighing_date, source_type },
-    ip_address:  meta.ip,
-    user_agent:  meta.userAgent,
+    entity_id: intake_id,
+    factory_id: intake.factory_id,
+    user_id: reqUser.user_id,
+    new_value: { measured_weight, weighing_date, source_type },
+    ip_address: meta.ip,
+    user_agent: meta.userAgent,
   });
 
   return record;
@@ -219,19 +211,16 @@ export const updateIntake = async (reqUser, id, body, meta = {}) => {
 
   const allowed = {};
 
-  if (body.material_type          !== undefined) {
+  if (body.material_type !== undefined) {
     if (!MATERIAL_TYPES.includes(body.material_type)) throw badReq(`Invalid material_type.`);
     allowed.material_type = body.material_type;
   }
-  if (body.material_source        !== undefined) {
-    if (!MATERIAL_SOURCES.includes(body.material_source)) throw badReq('Invalid material_source.');
-    allowed.material_source = body.material_source;
+  if (body.is_recycled !== undefined) {
+    if (typeof body.is_recycled !== 'boolean') throw badReq('is_recycled must be a boolean.');
+    allowed.is_recycled = body.is_recycled;
+    allowed.eligible_input_percent = body.is_recycled ? 100 : 0;
   }
-  if (body.material_status        !== undefined) {
-    if (!MATERIAL_STATUSES.includes(body.material_status)) throw badReq('Invalid material_status.');
-    allowed.material_status = body.material_status;
-  }
-  if (body.net_weight_kg          !== undefined) {
+  if (body.net_weight_kg !== undefined) {
     const w = parseFloat(body.net_weight_kg);
     if (isNaN(w) || w <= 0) throw badReq('net_weight_kg must be a positive number.');
     allowed.net_weight_kg = w;
@@ -241,28 +230,28 @@ export const updateIntake = async (reqUser, id, body, meta = {}) => {
     if (isNaN(p) || p < 0 || p > 100) throw badReq('eligible_input_percent must be between 0 and 100.');
     allowed.eligible_input_percent = p;
   }
-  if (body.intake_date            !== undefined) {
+  if (body.intake_date !== undefined) {
     const today = new Date().toISOString().split('T')[0];
     if (body.intake_date > today) throw badReq('intake_date cannot be in the future.');
     allowed.intake_date = body.intake_date;
   }
-  if (body.data_entry_profile     !== undefined) allowed.data_entry_profile  = body.data_entry_profile;
-  if (body.location_status        !== undefined) allowed.location_status     = body.location_status;
-  if (body.notes                  !== undefined) allowed.notes               = body.notes;
+  if (body.data_entry_profile !== undefined) allowed.data_entry_profile = body.data_entry_profile;
+  if (body.location_status !== undefined) allowed.location_status = body.location_status;
+  if (body.notes !== undefined) allowed.notes = body.notes;
 
   const updated = await updateIntakeById(id, allowed);
 
   if (updated) {
     logAudit({
-      action:      'intake.updated',
+      action: 'intake.updated',
       entity_type: 'intake',
-      entity_id:   id,
-      factory_id:  intake.factory_id,
-      user_id:     reqUser.user_id,
-      old_value:   intake,
-      new_value:   updated,
-      ip_address:  meta.ip,
-      user_agent:  meta.userAgent,
+      entity_id: id,
+      factory_id: intake.factory_id,
+      user_id: reqUser.user_id,
+      old_value: intake,
+      new_value: updated,
+      ip_address: meta.ip,
+      user_agent: meta.userAgent,
     });
   }
 

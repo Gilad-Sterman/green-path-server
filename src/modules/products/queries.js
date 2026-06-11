@@ -41,12 +41,12 @@ export const getProductBySku = async (factory_id, sku) => {
   return rows[0] || null;
 };
 
-export const insertProduct = async ({ factory_id, name, sku, description, required_lab_tests, material_recipe, eligible_percent }) => {
+export const insertProduct = async ({ factory_id, name, description, required_lab_tests, material_recipe, eligible_percent, is_active = true }) => {
   const { rows } = await pool.query(
-    `INSERT INTO products (factory_id, name, sku, description, required_lab_tests, material_recipe, eligible_percent)
+    `INSERT INTO products (factory_id, name, description, required_lab_tests, material_recipe, eligible_percent, is_active)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [factory_id, name, sku, description || null, required_lab_tests || [], JSON.stringify(material_recipe || []), eligible_percent ?? 0]
+    [factory_id, name, description || null, required_lab_tests || [], JSON.stringify(material_recipe || []), eligible_percent ?? 0, is_active]
   );
   return rows[0];
 };
