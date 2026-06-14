@@ -215,7 +215,7 @@ export const getAvailableBatchSources = async (factory_id) => {
   const { rows } = await pool.query(
     `SELECT b.id AS source_id, b.batch_code AS label, b.batch_date AS date,
             b.remaining_weight_kg AS remaining_kg,
-            p.name AS product_name, p.sku AS product_sku
+            p.name AS product_name
      FROM batches b
      JOIN products p ON p.id = b.product_id
      WHERE b.factory_id = $1

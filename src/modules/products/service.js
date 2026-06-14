@@ -1,4 +1,5 @@
 import { listProducts, getProductById, getProductBySku, insertProduct, updateProductById } from './queries.js';
+import { linkDocumentsToEntity } from '../documents/queries.js';
 
 const notFound  = (msg = 'Product not found.')    => Object.assign(new Error(msg), { status: 404 });
 const badReq    = (msg)                            => Object.assign(new Error(msg), { status: 400 });
@@ -63,7 +64,7 @@ export const getProduct = async (reqUser, id) => {
 };
 
 export const createProduct = async (reqUser, body) => {
-  const { name, description, required_lab_tests, material_recipe, is_active = true } = body;
+  const { name, description, required_lab_tests, material_recipe, is_active = true, spec_document_ids, lab_document_ids } = body;
 
   if (!name?.trim()) throw badReq('name is required.');
   if (required_lab_tests && !Array.isArray(required_lab_tests))
@@ -79,7 +80,7 @@ export const createProduct = async (reqUser, body) => {
   // if (existing) throw conflict(`A product with SKU "${sku}" already exists in this factory.`);
 
 
-  return insertProduct({
+  const product = await insertProduct({
     factory_id,
     name:             name.trim(),
     // sku:              sku.trim().toUpperCase(),
@@ -89,6 +90,17 @@ export const createProduct = async (reqUser, body) => {
     eligible_percent: computeEligiblePercent(material_recipe),
     is_active,
   });
+
+  const allDocIds = [
+    ...(Array.isArray(spec_document_ids) ? spec_document_ids : []),
+    ...(Array.isArray(lab_document_ids)  ? lab_document_ids  : []),
+  ].filter(Boolean);
+
+  if (allDocIds.length > 0) {
+    await linkDocumentsToEntity(allDocIds, 'product', product.id, factory_id);
+  }
+
+  return product;
 };
 
 export const updateProduct = async (reqUser, id, body) => {

@@ -88,6 +88,25 @@ export const unsuspendFactory = async (id) => {
   return updated;
 };
 
+export const geocodeAddress = async (address) => {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    throw Object.assign(new Error('Geocoding service not configured.'), { status: 503 });
+  }
+
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (data.status !== 'OK' || !data.results?.length) {
+    throw Object.assign(new Error('לא נמצא מיקום לכתובת שהוזנה. נסה לפרט יותר.'), { status: 404 });
+  }
+
+  const result = data.results[0];
+  const { lat, lng } = result.geometry.location;
+  return { lat, lng, formatted_address: result.formatted_address };
+};
+
 export const updateFactory = async (id, body) => {
   const factory = await getFactoryById(id);
   if (!factory) throw notFound();

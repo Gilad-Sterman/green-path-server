@@ -4,7 +4,7 @@ import { listDocuments, getDocumentById, insertDocument, updateDocumentById } fr
 import { uploadFile, getSignedUrl, getSignedUrls } from '../../utils/storage.js';
 import { analyzeDocument as runOcr } from '../../services/ocr.js';
 
-const ALLOWED_TYPES = ['delivery_note', 'invoice_in', 'invoice_out', 'lab_test', 'retro_invoice', 'weighing_document', 'other'];
+const ALLOWED_TYPES = ['delivery_note', 'invoice_in', 'invoice_out', 'lab_test', 'product_spec', 'retro_invoice', 'weighing_document', 'other'];
 const ALLOWED_MIME  = [
   'image/jpeg', 'image/png', 'image/webp', 'application/pdf',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx

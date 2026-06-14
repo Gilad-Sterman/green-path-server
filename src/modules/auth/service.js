@@ -21,9 +21,9 @@ const MAX_OTP_ATTEMPTS = 5;
 
 const generateOtpCode = () => String(Math.floor(100000 + Math.random() * 900000));
 
-const generateAccessToken = ({ id, factory_id, role }) =>
+const generateAccessToken = ({ id, factory_id, role, factory_status }) =>
   jwt.sign(
-    { user_id: id, factory_id, role },
+    { user_id: id, factory_id, role, factory_status: factory_status || null },
     process.env.JWT_SECRET,
     { expiresIn: ACCESS_TOKEN_EXPIRY }
   );
@@ -119,6 +119,7 @@ export const verifyOtp = async (phone_number, code, remember_me = false) => {
       role: user.role,
       factory_id: user.factory_id,
       factory_name: user.factory_name,
+      factory_status: user.factory_status || null,
     },
   };
 };
@@ -137,9 +138,10 @@ export const refreshAccessToken = async (refreshToken) => {
   }
 
   const accessToken = generateAccessToken({
-    id:         record.user_id,
-    factory_id: record.factory_id,
-    role:       record.role,
+    id:             record.user_id,
+    factory_id:     record.factory_id,
+    role:           record.role,
+    factory_status: record.factory_status || null,
   });
 
   // Rotate: revoke current token, issue a fresh one

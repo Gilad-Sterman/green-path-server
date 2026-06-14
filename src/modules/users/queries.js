@@ -4,7 +4,7 @@ export const getUserById = async (id) => {
   const { rows } = await pool.query(
     `SELECT u.id, u.created_at, u.updated_at, u.factory_id, u.phone_number,
             u.full_name, u.role, u.is_active, u.last_login_at,
-            f.name AS factory_name
+            f.name AS factory_name, f.status AS factory_status
      FROM users u
      LEFT JOIN factories f ON f.id = u.factory_id
      WHERE u.id = $1`,

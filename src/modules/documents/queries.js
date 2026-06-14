@@ -9,13 +9,13 @@ export const listDocuments = async ({
   const params = [];
   let idx = 1;
 
-  if (factory_id          !== undefined) { conditions.push(`factory_id          = $${idx++}`); params.push(factory_id);          }
-  if (uploader_id         !== undefined) { conditions.push(`uploader_id         = $${idx++}`); params.push(uploader_id);         }
-  if (document_type       !== undefined) { conditions.push(`document_type       = $${idx++}`); params.push(document_type);       }
-  if (status              !== undefined) { conditions.push(`status              = $${idx++}`); params.push(status);              }
-  if (ocr_status          !== undefined) { conditions.push(`ocr_status          = $${idx++}`); params.push(ocr_status);          }
-  if (related_entity_type !== undefined) { conditions.push(`related_entity_type = $${idx++}`); params.push(related_entity_type); }
-  if (related_entity_id   !== undefined) { conditions.push(`related_entity_id   = $${idx++}`); params.push(related_entity_id);   }
+  if (factory_id          !== undefined) { conditions.push(`d.factory_id          = $${idx++}`); params.push(factory_id);          }
+  if (uploader_id         !== undefined) { conditions.push(`d.uploader_id         = $${idx++}`); params.push(uploader_id);         }
+  if (document_type       !== undefined) { conditions.push(`d.document_type       = $${idx++}`); params.push(document_type);       }
+  if (status              !== undefined) { conditions.push(`d.status              = $${idx++}`); params.push(status);              }
+  if (ocr_status          !== undefined) { conditions.push(`d.ocr_status          = $${idx++}`); params.push(ocr_status);          }
+  if (related_entity_type !== undefined) { conditions.push(`d.related_entity_type = $${idx++}`); params.push(related_entity_type); }
+  if (related_entity_id   !== undefined) { conditions.push(`d.related_entity_id   = $${idx++}`); params.push(related_entity_id);   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 

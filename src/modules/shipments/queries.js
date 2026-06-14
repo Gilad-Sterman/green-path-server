@@ -48,8 +48,7 @@ export const getShipmentWithItems = async (id) => {
                   'weight_kg',        si.weight_kg,
                   'eligible_percent', si.eligible_percent,
                   'credit',           si.credit,
-                  'product_name',     p.name,
-                  'product_sku',      p.sku
+                  'product_name',     p.name
                 ) ORDER BY si.created_at
               ) FILTER (WHERE si.id IS NOT NULL),
               '[]'

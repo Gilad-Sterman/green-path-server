@@ -61,6 +61,19 @@ export const suspendFactory = async (req, res, next) => {
   }
 };
 
+// POST /api/factories/geocode
+export const geocodeAddress = async (req, res, next) => {
+  try {
+    const { address } = req.body;
+    if (!address?.trim()) return error(res, 'validation-error', 'address is required.', 400);
+    const result = await factoriesService.geocodeAddress(address.trim());
+    return success(res, result);
+  } catch (err) {
+    if (err.status) return error(res, 'geocode-error', err.message, err.status);
+    next(err);
+  }
+};
+
 // POST /api/factories/:id/unsuspend
 export const unsuspendFactory = async (req, res, next) => {
   try {

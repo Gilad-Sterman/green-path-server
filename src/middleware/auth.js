@@ -9,6 +9,9 @@ export const authenticate = (req, res, next) => {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     req.user = payload;
+    if (payload.factory_status === 'suspended' && payload.role !== 'internal_admin') {
+      return res.status(403).json({ success: false, error: { code: 'factory-suspended', message: 'המפעל הושעה. פנה למנהל המערכת.' } });
+    }
     next();
   } catch (err) {
     return res.status(401).json({ success: false, error: { code: 'auth-invalid-token', message: 'Invalid or expired token' } });

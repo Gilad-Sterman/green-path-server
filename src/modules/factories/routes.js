@@ -8,6 +8,7 @@ const router = Router();
 // internal_admin only — full CRUD
 router.get('/',    authenticate, requireRole('internal_admin'), factoriesController.listFactories);
 router.post('/',   authenticate, requireRole('internal_admin'), factoriesController.createFactory);
+router.post('/geocode', authenticate, requireRole('internal_admin'), factoriesController.geocodeAddress);
 router.patch('/:id', authenticate, requireRole('internal_admin'), factoriesController.updateFactory);
 router.post('/:id/suspend',   authenticate, requireRole('internal_admin'), factoriesController.suspendFactory);
 router.post('/:id/unsuspend', authenticate, requireRole('internal_admin'), factoriesController.unsuspendFactory);

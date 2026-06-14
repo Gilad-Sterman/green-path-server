@@ -45,7 +45,7 @@ export const incrementOtpAttempts = async (id) => {
 
 export const findUserByPhone = async (phone_number) => {
   const { rows } = await pool.query(
-    `SELECT u.*, f.name AS factory_name
+    `SELECT u.*, f.name AS factory_name, f.status AS factory_status
      FROM users u
      LEFT JOIN factories f ON f.id = u.factory_id
      WHERE u.phone_number = $1 AND u.is_active = true`,
@@ -75,9 +75,10 @@ export const insertRefreshToken = async (user_id, token, expires_at, remember_me
 export const findRefreshTokenRecord = async (token) => {
   const { rows } = await pool.query(
     `SELECT rt.*, u.id AS user_id, u.factory_id, u.role, u.full_name,
-            u.phone_number, u.is_active
+            u.phone_number, u.is_active, f.status AS factory_status
      FROM refresh_tokens rt
      JOIN users u ON u.id = rt.user_id
+     LEFT JOIN factories f ON f.id = u.factory_id
      WHERE rt.token = $1
        AND rt.revoked = false
        AND rt.expires_at > now()`,
