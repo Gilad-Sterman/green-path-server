@@ -1,16 +1,16 @@
 import pool from '../../db/client.js';
 
-export const createFactoryWithManager = async (factoryData, managerData) => {
+export const createFactoryWithManager = async (factoryData, managerData, created_by = null) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     const { name, company_id_number, address, geofence_center, geofence_radius_meters } = factoryData;
     const { rows: factoryRows } = await client.query(
-      `INSERT INTO factories (name, company_id_number, address, geofence_center, geofence_radius_meters)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO factories (name, company_id_number, address, geofence_center, geofence_radius_meters, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [name, company_id_number, address, geofence_center || null, geofence_radius_meters || null]
+      [name, company_id_number, address, geofence_center || null, geofence_radius_meters || null, created_by]
     );
     const factory = factoryRows[0];
 
@@ -80,11 +80,13 @@ export const listFactories = async ({ status, limit = 50, offset = 0 }) => {
 export const getFactoryById = async (id) => {
   const { rows } = await pool.query(
     `SELECT f.*,
-            COUNT(u.id) FILTER (WHERE u.is_active = true) AS active_user_count
+            COUNT(u.id) FILTER (WHERE u.is_active = true) AS active_user_count,
+            creator.full_name AS creator_name
      FROM factories f
-     LEFT JOIN users u ON u.factory_id = f.id
+     LEFT JOIN users u       ON u.factory_id = f.id
+     LEFT JOIN users creator ON creator.id   = f.created_by
      WHERE f.id = $1
-     GROUP BY f.id`,
+     GROUP BY f.id, creator.full_name`,
     [id]
   );
   return rows[0] || null;

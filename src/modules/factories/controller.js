@@ -15,7 +15,7 @@ export const listFactories = async (req, res, next) => {
 // POST /api/factories
 export const createFactory = async (req, res, next) => {
   try {
-    const result = await factoriesService.createFactory(req.body);
+    const result = await factoriesService.createFactory(req.body, req.user);
     return success(res, {
       factory:       result.factory,
       admin_user_id: result.admin_user_id,

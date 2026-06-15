@@ -81,7 +81,18 @@ export const cancelBatch = async (req, res, next) => {
 // PATCH /api/batches/:id/block
 export const blockBatch = async (req, res, next) => {
   try {
-    const batch = await batchesService.blockBatch(req.user, req.params.id);
+    const batch = await batchesService.blockBatch(req.user, req.params.id, req.body.reason);
+    return success(res, { batch });
+  } catch (err) {
+    if (err.status) return error(res, 'batch-error', err.message, err.status);
+    next(err);
+  }
+};
+
+// POST /api/batches/:id/waste
+export const addWaste = async (req, res, next) => {
+  try {
+    const batch = await batchesService.addWaste(req.user, req.params.id, req.body.waste_kg);
     return success(res, { batch });
   } catch (err) {
     if (err.status) return error(res, 'batch-error', err.message, err.status);

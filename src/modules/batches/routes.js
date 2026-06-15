@@ -21,5 +21,6 @@ router.patch('/:id/cancel',    authenticate, managerOrAdmin, batchesController.c
 router.patch('/:id/block',     authenticate, managerOrAdmin, batchesController.blockBatch);
 router.patch('/:id/unblock',   authenticate, managerOrAdmin, batchesController.unblockBatch);
 router.patch('/:id/fail',      authenticate, managerOrAdmin, batchesController.failBatch);
+router.post('/:id/waste',      authenticate, managerOrAdmin, batchesController.addWaste);
 
 export default router;

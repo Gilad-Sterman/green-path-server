@@ -4,7 +4,7 @@ import {
   generateBatchCode, isBatchCodeUnique, getBatchAncestorIds,
   getAvailableIntakeSources, getAvailableBatchSources,
   createBatchTransaction, updateBatchById, cancelBatchTransaction,
-  setBlockedById, setFailedById,
+  setBlockedById, setFailedById, updateWasteById,
 } from './queries.js';
 import { getProductById } from '../products/queries.js';
 import { linkDocumentsToEntity } from '../documents/queries.js';
@@ -157,7 +157,7 @@ export const createBatch = async (reqUser, body, meta = {}) => {
   }
 
   const batch = await createBatchTransaction(
-    { factory_id, product_id, output_weight_kg, batch_code: final_code, batch_date: batch_date || null, original_batch_code: auto_code, was_code_edited, notes },
+    { factory_id, product_id, output_weight_kg, batch_code: final_code, batch_date: batch_date || null, original_batch_code: auto_code, was_code_edited, notes, created_by: reqUser.user_id },
     resolvedSources
   );
 
@@ -199,13 +199,14 @@ export const cancelBatch = async (reqUser, id) => {
   return getBatchById(id);
 };
 
-export const blockBatch = async (reqUser, id) => {
+export const blockBatch = async (reqUser, id, reason) => {
   const batch = await getBatchById(id);
   if (!batch) throw notFound();
   assertFactoryAccess(reqUser, batch);
   if (batch.is_active === false) throw badReq('Batch is already blocked.');
   if (batch.status !== 'in_progress') throw badReq('Only in-progress batches can be blocked.');
-  return setBlockedById(id, false);
+  if (!reason?.trim()) throw badReq('A block reason is required.');
+  return setBlockedById(id, false, reason.trim());
 };
 
 export const unblockBatch = async (reqUser, id) => {
@@ -214,6 +215,29 @@ export const unblockBatch = async (reqUser, id) => {
   assertFactoryAccess(reqUser, batch);
   if (batch.is_active !== false) throw badReq('Batch is not blocked.');
   return setBlockedById(id, true);
+};
+
+export const addWaste = async (reqUser, id, waste_kg) => {
+  const batch = await getBatchById(id);
+  if (!batch) throw notFound();
+  assertFactoryAccess(reqUser, batch);
+  if (batch.status !== 'in_progress') throw badReq('Can only update waste for in-progress batches.');
+  if (batch.is_active === false) throw badReq('Cannot update waste for a blocked batch.');
+  const wasteAmount = parseFloat(waste_kg);
+  if (isNaN(wasteAmount) || wasteAmount <= 0) throw badReq('waste_kg must be a positive number.');
+  if (wasteAmount > parseFloat(batch.remaining_weight_kg)) {
+    throw badReq(`Waste amount exceeds remaining weight of ${batch.remaining_weight_kg} kg.`);
+  }
+  const updated = await updateWasteById(id, wasteAmount);
+  logAudit({
+    action:      'batch.waste_added',
+    entity_type: 'batch',
+    entity_id:   id,
+    factory_id:  batch.factory_id,
+    user_id:     reqUser.user_id,
+    new_value:   { waste_kg: wasteAmount },
+  });
+  return updated;
 };
 
 export const failBatch = async (reqUser, id) => {

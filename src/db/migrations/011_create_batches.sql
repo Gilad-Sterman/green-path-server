@@ -19,9 +19,12 @@ CREATE TABLE public.batches (
   is_active         boolean     NOT NULL DEFAULT true,
   output_weight_kg  numeric     NOT NULL CHECK (output_weight_kg > 0),
   used_weight_kg    numeric     NOT NULL DEFAULT 0 CHECK (used_weight_kg >= 0),
-  -- remaining_weight_kg is always derived: output_weight_kg - used_weight_kg
+  waste_weight_kg   numeric     NOT NULL DEFAULT 0 CHECK (waste_weight_kg >= 0),
+  -- remaining_weight_kg is always derived: output_weight_kg - used_weight_kg - waste_weight_kg
   remaining_weight_kg numeric   NOT NULL GENERATED ALWAYS AS
-                    (output_weight_kg - used_weight_kg) STORED,
+                    (output_weight_kg - used_weight_kg - waste_weight_kg) STORED,
+  block_reason      text,
+  created_by        uuid        REFERENCES public.users(id) ON DELETE SET NULL,
   notes             text,
   CONSTRAINT batches_batch_code_factory_unique UNIQUE (factory_id, batch_code)
 );

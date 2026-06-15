@@ -12,9 +12,10 @@ export const listBatches = async ({ factory_id, product_id, status, limit = 50, 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await pool.query(
-    `SELECT b.*, p.name AS product_name, p.eligible_percent
+    `SELECT b.*, p.name AS product_name, p.eligible_percent, u.full_name AS creator_name
      FROM batches b
      JOIN products p ON p.id = b.product_id
+     LEFT JOIN users u ON u.id = b.created_by
      ${where}
      ORDER BY b.created_at DESC
      LIMIT $${idx++} OFFSET $${idx}`,
@@ -36,7 +37,7 @@ export const getBatchById = async (id) => {
 
 export const getBatchWithComponents = async (id) => {
   const { rows } = await pool.query(
-    `SELECT b.*, p.name AS product_name, p.eligible_percent,
+    `SELECT b.*, p.name AS product_name, p.eligible_percent, u.full_name AS creator_name,
             (
               SELECT COALESCE(
                 JSON_AGG(
@@ -81,8 +82,9 @@ export const getBatchWithComponents = async (id) => {
      LEFT JOIN suppliers sup            ON sup.id        = rmi.supplier_id
      LEFT JOIN batches src_b            ON src_b.id      = bc.source_id AND bc.source_type = 'batch'
      LEFT JOIN products src_p           ON src_p.id      = src_b.product_id
+     LEFT JOIN users u                  ON u.id           = b.created_by
      WHERE b.id = $1
-     GROUP BY b.id, p.name, p.eligible_percent`,
+     GROUP BY b.id, p.name, p.eligible_percent, u.full_name`,
     [id]
   );
   return rows[0] || null;
@@ -236,14 +238,14 @@ export const createBatchTransaction = async (batchData, sources) => {
     const { rows: [batch] } = await client.query(
       `INSERT INTO batches
          (factory_id, product_id, output_weight_kg, batch_code, batch_date,
-          original_batch_code, was_code_edited, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          original_batch_code, was_code_edited, notes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         batchData.factory_id, batchData.product_id, batchData.output_weight_kg,
         batchData.batch_code, batchData.batch_date || null,
         batchData.original_batch_code, batchData.was_code_edited || false,
-        batchData.notes || null,
+        batchData.notes || null, batchData.created_by || null,
       ]
     );
 
@@ -300,10 +302,19 @@ export const updateBatchById = async (id, fields) => {
   return rows[0] || null;
 };
 
-export const setBlockedById = async (id, is_active) => {
+export const setBlockedById = async (id, is_active, block_reason = null) => {
   const { rows } = await pool.query(
-    `UPDATE batches SET is_active = $1, updated_at = now() WHERE id = $2 RETURNING *`,
-    [is_active, id]
+    `UPDATE batches SET is_active = $1, block_reason = $2, updated_at = now() WHERE id = $3 RETURNING *`,
+    [is_active, is_active ? null : block_reason, id]
+  );
+  return rows[0] || null;
+};
+
+export const updateWasteById = async (id, waste_delta_kg) => {
+  const { rows } = await pool.query(
+    `UPDATE batches SET waste_weight_kg = waste_weight_kg + $1, updated_at = now()
+     WHERE id = $2 RETURNING *`,
+    [waste_delta_kg, id]
   );
   return rows[0] || null;
 };

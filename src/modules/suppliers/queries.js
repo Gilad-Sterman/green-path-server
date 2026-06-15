@@ -33,23 +33,12 @@ export const getSupplierById = async (id) => {
   return rows[0] || null;
 };
 
-export const insertSupplier = async ({
-  factory_id, name, contact_person, phone, email,
-  allowed_material_types, allowed_material_sources, erp_id,
-}) => {
+export const insertSupplier = async ({ factory_id, name, allowed_material_types, is_active = true }) => {
   const { rows } = await pool.query(
-    `INSERT INTO suppliers
-       (factory_id, name, contact_person, phone, email,
-        allowed_material_types, allowed_material_sources, erp_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO suppliers (factory_id, name, allowed_material_types, is_active)
+     VALUES ($1, $2, $3, $4)
      RETURNING *`,
-    [
-      factory_id, name,
-      contact_person || null, phone || null, email || null,
-      allowed_material_types || [],
-      allowed_material_sources || [],
-      erp_id || null,
-    ]
+    [factory_id, name, allowed_material_types || [], is_active]
   );
   return rows[0];
 };

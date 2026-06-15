@@ -33,7 +33,7 @@ export const getFactory = async (reqUser, id) => {
   return factory;
 };
 
-export const createFactory = async (body) => {
+export const createFactory = async (body, reqUser = null) => {
   const { name, company_id_number, address, geofence_center, geofence_radius_meters, admin_user } = body;
 
   if (!name || !company_id_number || !address) {
@@ -63,7 +63,8 @@ export const createFactory = async (body) => {
 
   const { factory, manager } = await createFactoryWithManager(
     { name, company_id_number, address, geofence_center, geofence_radius_meters },
-    { full_name: admin_user.full_name, phone_number: admin_user.phone_number, email: admin_user.email }
+    { full_name: admin_user.full_name, phone_number: admin_user.phone_number, email: admin_user.email },
+    reqUser?.user_id || null
   );
 
   return { factory_id: factory.id, admin_user_id: manager.id, invite_sent: false, factory, manager };

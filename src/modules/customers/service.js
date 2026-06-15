@@ -33,14 +33,14 @@ export const getCustomer = async (reqUser, id) => {
 };
 
 export const createCustomer = async (reqUser, body) => {
-  const { name, contact_person, phone, email } = body;
+  const { name } = body;
   if (!name?.trim()) throw badReq('name is required.');
 
   const factory_id = reqUser.role === 'internal_admin'
     ? (body.factory_id || (() => { throw badReq('factory_id is required for internal_admin.'); })())
     : reqUser.factory_id;
 
-  return insertCustomer({ factory_id, name: name.trim(), contact_person, phone, email });
+  return insertCustomer({ factory_id, name: name.trim(), is_active: body.is_active !== false });
 };
 
 export const updateCustomer = async (reqUser, id, body) => {
@@ -49,10 +49,8 @@ export const updateCustomer = async (reqUser, id, body) => {
   assertFactoryAccess(reqUser, customer);
 
   const allowed = {};
-  if (body.name           !== undefined) allowed.name           = body.name;
-  if (body.contact_person !== undefined) allowed.contact_person = body.contact_person;
-  if (body.phone          !== undefined) allowed.phone          = body.phone;
-  if (body.email          !== undefined) allowed.email          = body.email;
+  if (body.name      !== undefined) allowed.name      = body.name;
+  if (body.is_active !== undefined) allowed.is_active = body.is_active;
 
   return updateCustomerById(id, allowed);
 };

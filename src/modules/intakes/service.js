@@ -117,6 +117,16 @@ export const createIntake = async (reqUser, body, meta = {}) => {
     }).catch(() => { });
   }
 
+  if (data_entry_profile === 'ocr_edited') {
+    insertFlag({
+      factory_id,
+      entity_type: 'intake',
+      entity_id: intake.id,
+      reason: 'ocr-field-edited',
+      severity: 'low',
+    }).catch(() => { });
+  }
+
   logAudit({
     action: 'intake.created',
     entity_type: 'intake',

@@ -33,12 +33,12 @@ export const getCustomerById = async (id) => {
   return rows[0] || null;
 };
 
-export const insertCustomer = async ({ factory_id, name, contact_person, phone, email }) => {
+export const insertCustomer = async ({ factory_id, name, is_active = true }) => {
   const { rows } = await pool.query(
-    `INSERT INTO customers (factory_id, name, contact_person, phone, email)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO customers (factory_id, name, is_active)
+     VALUES ($1, $2, $3)
      RETURNING *`,
-    [factory_id, name, contact_person || null, phone || null, email || null]
+    [factory_id, name, is_active]
   );
   return rows[0];
 };

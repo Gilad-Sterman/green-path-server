@@ -38,27 +38,18 @@ export const getSupplier = async (reqUser, id) => {
 };
 
 export const createSupplier = async (reqUser, body) => {
-  const {
-    name, contact_person, phone, email,
-    allowed_material_types, allowed_material_sources, erp_id,
-  } = body;
+  const { name, allowed_material_types } = body;
 
   if (!name?.trim()) throw badReq('name is required.');
-  if (allowed_material_types && !Array.isArray(allowed_material_types)) {
-    throw badReq('allowed_material_types must be an array of strings.');
-  }
-  if (allowed_material_sources && !Array.isArray(allowed_material_sources)) {
-    throw badReq('allowed_material_sources must be an array of strings.');
+  if (!Array.isArray(allowed_material_types) || allowed_material_types.length === 0) {
+    throw badReq('At least one allowed_material_type is required.');
   }
 
   const factory_id = reqUser.role === 'internal_admin'
     ? (body.factory_id || (() => { throw badReq('factory_id is required for internal_admin.'); })())
     : reqUser.factory_id;
 
-  return insertSupplier({
-    factory_id, name: name.trim(), contact_person, phone, email,
-    allowed_material_types, allowed_material_sources, erp_id,
-  });
+  return insertSupplier({ factory_id, name: name.trim(), allowed_material_types, is_active: body.is_active !== false });
 };
 
 export const updateSupplier = async (reqUser, id, body) => {
@@ -67,13 +58,14 @@ export const updateSupplier = async (reqUser, id, body) => {
   assertFactoryAccess(reqUser, supplier);
 
   const allowed = {};
-  if (body.name                    !== undefined) allowed.name                    = body.name;
-  if (body.contact_person          !== undefined) allowed.contact_person          = body.contact_person;
-  if (body.phone                   !== undefined) allowed.phone                   = body.phone;
-  if (body.email                   !== undefined) allowed.email                   = body.email;
-  if (body.allowed_material_types  !== undefined) allowed.allowed_material_types  = body.allowed_material_types;
-  if (body.allowed_material_sources !== undefined) allowed.allowed_material_sources = body.allowed_material_sources;
-  if (body.erp_id                  !== undefined) allowed.erp_id                  = body.erp_id;
+  if (body.name                   !== undefined) allowed.name                   = body.name;
+  if (body.is_active              !== undefined) allowed.is_active              = body.is_active;
+  if (body.allowed_material_types !== undefined) {
+    if (!Array.isArray(body.allowed_material_types) || body.allowed_material_types.length === 0) {
+      throw badReq('At least one allowed_material_type is required.');
+    }
+    allowed.allowed_material_types = body.allowed_material_types;
+  }
 
   return updateSupplierById(id, allowed);
 };

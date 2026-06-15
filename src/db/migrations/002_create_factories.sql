@@ -8,7 +8,8 @@ CREATE TABLE public.factories (
   geofence_center jsonb,                  -- { "lat": 32.08, "lng": 34.78 }
   geofence_radius_meters numeric,
   status          text        NOT NULL DEFAULT 'active'
-                  CHECK (status IN ('active', 'suspended', 'inactive'))
+                  CHECK (status IN ('active', 'suspended', 'inactive')),
+  created_by      uuid        REFERENCES public.users(id)
 );
 
 CREATE TRIGGER set_factories_updated_at
