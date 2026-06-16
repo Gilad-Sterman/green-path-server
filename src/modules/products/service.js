@@ -1,4 +1,4 @@
-import { listProducts, getProductById, getProductBySku, insertProduct, updateProductById } from './queries.js';
+import { listProducts, getProductById, getProductBySku, insertProduct, updateProductById, hasActiveBatchesForProduct } from './queries.js';
 import { linkDocumentsToEntity } from '../documents/queries.js';
 
 const notFound  = (msg = 'Product not found.')    => Object.assign(new Error(msg), { status: 404 });
@@ -113,6 +113,8 @@ export const updateProduct = async (reqUser, id, body) => {
   if (body.description        !== undefined) allowed.description        = body.description;
   if (body.required_lab_tests !== undefined) allowed.required_lab_tests = body.required_lab_tests;
   if (body.material_recipe    !== undefined) {
+    const locked = await hasActiveBatchesForProduct(id);
+    if (locked) throw badReq('נוסחת המוצר נעולה — קיימות אצוות פעילות עבור תוצ"ג זה.');
     validateRecipe(body.material_recipe);
     allowed.material_recipe  = body.material_recipe;
     allowed.eligible_percent = computeEligiblePercent(body.material_recipe);

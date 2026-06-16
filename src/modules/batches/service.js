@@ -69,7 +69,7 @@ export const getAvailableSources = async (reqUser, query) => {
 export const createBatch = async (reqUser, body, meta = {}) => {
   const {
     product_id, batch_code: submitted_code, batch_date, notes,
-    sources, document_ids,
+    sources, document_ids, for_consolidation = false,
   } = body;
 
   if (!product_id) throw badReq('product_id is required.');
@@ -157,7 +157,7 @@ export const createBatch = async (reqUser, body, meta = {}) => {
   }
 
   const batch = await createBatchTransaction(
-    { factory_id, product_id, output_weight_kg, batch_code: final_code, batch_date: batch_date || null, original_batch_code: auto_code, was_code_edited, notes, created_by: reqUser.user_id },
+    { factory_id, product_id, output_weight_kg, batch_code: final_code, batch_date: batch_date || null, original_batch_code: auto_code, was_code_edited, notes, created_by: reqUser.user_id, for_consolidation },
     resolvedSources
   );
 

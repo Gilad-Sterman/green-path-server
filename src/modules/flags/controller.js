@@ -45,6 +45,17 @@ export const resolveFlag = async (req, res, next) => {
   }
 };
 
+// POST /api/flags/expire-stale (internal_admin only)
+export const expireStaleFlags = async (req, res, next) => {
+  try {
+    const result = await flagsService.expireFlags(req.user);
+    return success(res, result);
+  } catch (err) {
+    if (err.status) return error(res, 'flag-error', err.message, err.status);
+    next(err);
+  }
+};
+
 // POST /api/flags/:id/dismiss
 export const dismissFlag = async (req, res, next) => {
   try {

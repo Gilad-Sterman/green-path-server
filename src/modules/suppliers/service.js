@@ -49,7 +49,7 @@ export const createSupplier = async (reqUser, body) => {
     ? (body.factory_id || (() => { throw badReq('factory_id is required for internal_admin.'); })())
     : reqUser.factory_id;
 
-  return insertSupplier({ factory_id, name: name.trim(), allowed_material_types, is_active: body.is_active !== false });
+  return insertSupplier({ factory_id, name: name.trim(), allowed_material_types, is_active: body.is_active !== false, created_by: reqUser.user_id });
 };
 
 export const updateSupplier = async (reqUser, id, body) => {

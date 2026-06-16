@@ -51,6 +51,17 @@ export const insertProduct = async ({ factory_id, name, description, required_la
   return rows[0];
 };
 
+export const hasActiveBatchesForProduct = async (product_id) => {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM batches
+     WHERE product_id = $1
+       AND status NOT IN ('cancelled', 'failed')
+     LIMIT 1`,
+    [product_id]
+  );
+  return rows.length > 0;
+};
+
 export const updateProductById = async (id, fields) => {
   const setClauses = [];
   const params = [];

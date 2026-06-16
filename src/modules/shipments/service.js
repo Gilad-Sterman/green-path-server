@@ -176,6 +176,24 @@ export const receiveHashavshevetInvoice = async (body) => {
   return updated;
 };
 
+export const updateManualInvoice = async (reqUser, id, body) => {
+  const shipment = await getShipmentById(id);
+  if (!shipment) throw notFound();
+  assertFactoryAccess(reqUser, shipment);
+
+  if (shipment.status === 'cancelled') throw badReq('לא ניתן להוסיף חשבונית למשלוח שבוטל.');
+  if (shipment.invoice_status === 'received') throw badReq('חשבונית כבר התקבלה עבור משלוח זה.');
+
+  const { invoice_number, invoice_date } = body;
+  if (!invoice_number?.trim()) throw badReq('invoice_number is required.');
+
+  return updateShipmentById(id, {
+    invoice_status: 'received',
+    invoice_number: invoice_number.trim(),
+    invoice_date:   invoice_date || null,
+  });
+};
+
 export const updateShipmentStatus = async (reqUser, id, body, meta = {}) => {
   const shipment = await getShipmentById(id);
   if (!shipment) throw notFound();

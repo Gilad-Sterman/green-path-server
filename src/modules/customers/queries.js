@@ -5,10 +5,10 @@ export const listCustomers = async ({ factory_id, is_active, search, limit = 50,
   const params = [];
   let idx = 1;
 
-  if (factory_id !== undefined) { conditions.push(`factory_id = $${idx++}`); params.push(factory_id); }
-  if (is_active  !== undefined) { conditions.push(`is_active  = $${idx++}`); params.push(is_active);  }
+  if (factory_id !== undefined) { conditions.push(`c.factory_id = $${idx++}`); params.push(factory_id); }
+  if (is_active  !== undefined) { conditions.push(`c.is_active  = $${idx++}`); params.push(is_active);  }
   if (search) {
-    conditions.push(`(name ILIKE $${idx} OR contact_person ILIKE $${idx})`);
+    conditions.push(`(c.name ILIKE $${idx} OR c.contact_person ILIKE $${idx})`);
     params.push(`%${search}%`);
     idx++;
   }
@@ -16,9 +16,11 @@ export const listCustomers = async ({ factory_id, is_active, search, limit = 50,
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await pool.query(
-    `SELECT * FROM customers
+    `SELECT c.*, u.full_name AS creator_name
+     FROM customers c
+     LEFT JOIN users u ON u.id = c.created_by
      ${where}
-     ORDER BY name ASC
+     ORDER BY c.name ASC
      LIMIT $${idx++} OFFSET $${idx}`,
     [...params, limit, offset]
   );
@@ -27,18 +29,26 @@ export const listCustomers = async ({ factory_id, is_active, search, limit = 50,
 
 export const getCustomerById = async (id) => {
   const { rows } = await pool.query(
-    `SELECT * FROM customers WHERE id = $1`,
+    `SELECT c.*, u.full_name AS creator_name
+     FROM customers c
+     LEFT JOIN users u ON u.id = c.created_by
+     WHERE c.id = $1`,
     [id]
   );
   return rows[0] || null;
 };
 
-export const insertCustomer = async ({ factory_id, name, is_active = true }) => {
+export const insertCustomer = async ({ factory_id, name, is_active = true, created_by = null }) => {
   const { rows } = await pool.query(
-    `INSERT INTO customers (factory_id, name, is_active)
-     VALUES ($1, $2, $3)
-     RETURNING *`,
-    [factory_id, name, is_active]
+    `WITH inserted AS (
+       INSERT INTO customers (factory_id, name, is_active, created_by)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *
+     )
+     SELECT i.*, u.full_name AS creator_name
+     FROM inserted i
+     LEFT JOIN users u ON u.id = i.created_by`,
+    [factory_id, name, is_active, created_by]
   );
   return rows[0];
 };

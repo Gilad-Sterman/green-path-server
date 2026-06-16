@@ -11,7 +11,7 @@ CREATE TABLE public.flags (
   severity        text        NOT NULL
                   CHECK (severity IN ('low', 'medium', 'high', 'critical')),
   status          text        NOT NULL DEFAULT 'open'
-                  CHECK (status IN ('open', 'resolved', 'dismissed')),
+                  CHECK (status IN ('open', 'resolved', 'dismissed', 'expired')),
   resolution      text,                   -- 'approved_exception' | 'corrected' | 'dismissed'
   resolution_note text,
   resolved_by     uuid        REFERENCES public.users(id),

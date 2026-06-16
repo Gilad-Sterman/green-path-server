@@ -5,10 +5,10 @@ export const listSuppliers = async ({ factory_id, is_active, search, limit = 50,
   const params = [];
   let idx = 1;
 
-  if (factory_id !== undefined) { conditions.push(`factory_id = $${idx++}`); params.push(factory_id); }
-  if (is_active  !== undefined) { conditions.push(`is_active  = $${idx++}`); params.push(is_active);  }
+  if (factory_id !== undefined) { conditions.push(`s.factory_id = $${idx++}`); params.push(factory_id); }
+  if (is_active  !== undefined) { conditions.push(`s.is_active  = $${idx++}`); params.push(is_active);  }
   if (search) {
-    conditions.push(`(name ILIKE $${idx} OR contact_person ILIKE $${idx} OR erp_id ILIKE $${idx})`);
+    conditions.push(`(s.name ILIKE $${idx} OR s.contact_person ILIKE $${idx} OR s.erp_id ILIKE $${idx})`);
     params.push(`%${search}%`);
     idx++;
   }
@@ -16,9 +16,11 @@ export const listSuppliers = async ({ factory_id, is_active, search, limit = 50,
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await pool.query(
-    `SELECT * FROM suppliers
+    `SELECT s.*, u.full_name AS creator_name
+     FROM suppliers s
+     LEFT JOIN users u ON u.id = s.created_by
      ${where}
-     ORDER BY name ASC
+     ORDER BY s.name ASC
      LIMIT $${idx++} OFFSET $${idx}`,
     [...params, limit, offset]
   );
@@ -27,18 +29,26 @@ export const listSuppliers = async ({ factory_id, is_active, search, limit = 50,
 
 export const getSupplierById = async (id) => {
   const { rows } = await pool.query(
-    `SELECT * FROM suppliers WHERE id = $1`,
+    `SELECT s.*, u.full_name AS creator_name
+     FROM suppliers s
+     LEFT JOIN users u ON u.id = s.created_by
+     WHERE s.id = $1`,
     [id]
   );
   return rows[0] || null;
 };
 
-export const insertSupplier = async ({ factory_id, name, allowed_material_types, is_active = true }) => {
+export const insertSupplier = async ({ factory_id, name, allowed_material_types, is_active = true, created_by = null }) => {
   const { rows } = await pool.query(
-    `INSERT INTO suppliers (factory_id, name, allowed_material_types, is_active)
-     VALUES ($1, $2, $3, $4)
-     RETURNING *`,
-    [factory_id, name, allowed_material_types || [], is_active]
+    `WITH inserted AS (
+       INSERT INTO suppliers (factory_id, name, allowed_material_types, is_active, created_by)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *
+     )
+     SELECT i.*, u.full_name AS creator_name
+     FROM inserted i
+     LEFT JOIN users u ON u.id = i.created_by`,
+    [factory_id, name, allowed_material_types || [], is_active, created_by]
   );
   return rows[0];
 };

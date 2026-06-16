@@ -45,6 +45,17 @@ export const receiveHashavshevetInvoice = async (req, res, next) => {
   }
 };
 
+// PATCH /api/shipments/:id/invoice
+export const updateManualInvoice = async (req, res, next) => {
+  try {
+    const shipment = await shipmentsService.updateManualInvoice(req.user, req.params.id, req.body);
+    return success(res, { shipment });
+  } catch (err) {
+    if (err.status) return error(res, 'shipment-error', err.message, err.status);
+    next(err);
+  }
+};
+
 // PATCH /api/shipments/:id/status
 export const updateShipmentStatus = async (req, res, next) => {
   try {

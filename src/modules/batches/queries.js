@@ -238,14 +238,15 @@ export const createBatchTransaction = async (batchData, sources) => {
     const { rows: [batch] } = await client.query(
       `INSERT INTO batches
          (factory_id, product_id, output_weight_kg, batch_code, batch_date,
-          original_batch_code, was_code_edited, notes, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          original_batch_code, was_code_edited, notes, created_by, for_consolidation)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         batchData.factory_id, batchData.product_id, batchData.output_weight_kg,
         batchData.batch_code, batchData.batch_date || null,
         batchData.original_batch_code, batchData.was_code_edited || false,
         batchData.notes || null, batchData.created_by || null,
+        batchData.for_consolidation ?? false,
       ]
     );
 

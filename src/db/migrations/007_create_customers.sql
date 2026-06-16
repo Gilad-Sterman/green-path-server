@@ -7,7 +7,8 @@ CREATE TABLE public.customers (
   contact_person text,
   phone          text,
   email          text,
-  is_active      boolean     NOT NULL DEFAULT true
+  is_active      boolean     NOT NULL DEFAULT true,
+  created_by     uuid        REFERENCES public.users(id)
 );
 
 CREATE TRIGGER set_customers_updated_at

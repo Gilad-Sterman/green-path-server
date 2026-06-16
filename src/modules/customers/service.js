@@ -40,7 +40,7 @@ export const createCustomer = async (reqUser, body) => {
     ? (body.factory_id || (() => { throw badReq('factory_id is required for internal_admin.'); })())
     : reqUser.factory_id;
 
-  return insertCustomer({ factory_id, name: name.trim(), is_active: body.is_active !== false });
+  return insertCustomer({ factory_id, name: name.trim(), is_active: body.is_active !== false, created_by: reqUser.user_id });
 };
 
 export const updateCustomer = async (reqUser, id, body) => {

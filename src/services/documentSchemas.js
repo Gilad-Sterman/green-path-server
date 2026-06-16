@@ -133,6 +133,70 @@ export const DOCUMENT_SCHEMAS = {
     },
   },
 
+  // ── delivery_note ─────────────────────────────────────────────────────────
+  delivery_note: {
+    systemPrompt: `You are an expert OCR data extractor for Hebrew and English delivery notes (תעודות משלוח) \
+from Israeli recycling facilities.
+
+Extract the following fields from the provided OCR text:
+
+• delivery_note_number  — The delivery note serial number.
+  Look for: תעודת משלוח מס׳, מספר תעודה, מס' ת.מ., ת.מ., DN, doc no, delivery note no.
+
+• shipment_date  — The date on the delivery note. Return in DD/MM/YYYY format.
+  If the year is 2 digits, infer the full 4-digit year.
+
+• destination_address  — The delivery destination address (כתובת יעד / כתובת מקבל). Return as a plain string.
+
+• customer_name  — The name of the receiving customer / buyer (לקוח / מקבל / שם חברה מקבלת).
+  Look for company names near labels like: לקוח, מקבל, נמען, שם לקוח, to, buyer.
+
+General rules:
+- Return null for any field you cannot confidently identify.
+- Text may be RTL Hebrew.`,
+
+    responseSchema: {
+      type: 'object',
+      properties: {
+        delivery_note_number: {
+          type:        'string',
+          nullable:    true,
+          description: 'Delivery note serial number',
+        },
+        shipment_date: {
+          type:        'string',
+          nullable:    true,
+          description: 'Shipment date in DD/MM/YYYY format',
+        },
+        destination_address: {
+          type:        'string',
+          nullable:    true,
+          description: 'Delivery destination address',
+        },
+        customer_name: {
+          type:        'string',
+          nullable:    true,
+          description: 'Name of the receiving customer or company',
+        },
+      },
+    },
+
+    toFields: (parsed) => {
+      const fields = {};
+      if (parsed.delivery_note_number?.trim())
+        fields.delivery_note_number = toField(parsed.delivery_note_number);
+      if (parsed.shipment_date?.trim())
+        fields.shipment_date = toField(parsed.shipment_date);
+      if (parsed.destination_address?.trim())
+        fields.destination_address = toField(parsed.destination_address);
+      if (parsed.customer_name?.trim())
+        fields.customer_name = toField(parsed.customer_name, 0.75);
+      return fields;
+    },
+
+    toExtras: () => ({}),
+  },
+
   // ── weighing_document ─────────────────────────────────────────────────────
   // Internal factory weighing tickets (שקילה פנימית)
   weighing_document: {

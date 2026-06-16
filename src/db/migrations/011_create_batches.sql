@@ -26,6 +26,8 @@ CREATE TABLE public.batches (
   block_reason      text,
   created_by        uuid        REFERENCES public.users(id) ON DELETE SET NULL,
   notes             text,
+  -- Whether this batch is intended for consolidation with other batches
+  for_consolidation boolean     NOT NULL DEFAULT false,
   CONSTRAINT batches_batch_code_factory_unique UNIQUE (factory_id, batch_code)
 );
 

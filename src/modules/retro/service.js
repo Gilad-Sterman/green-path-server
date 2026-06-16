@@ -203,6 +203,13 @@ export const parseAndValidateFile = (buffer) => {
     .filter(r => r.record_type === 'outbound')
     .reduce((sum, r) => sum + (r.calculated_credits || 0), 0);
 
+  const validInboundWeight  = validRecords
+    .filter(r => r.record_type === 'inbound')
+    .reduce((s, r) => s + (r.weight || 0), 0);
+  const validOutboundWeight = validRecords
+    .filter(r => r.record_type === 'outbound')
+    .reduce((s, r) => s + (r.weight || 0), 0);
+
   return {
     records,
     validCount:    validRecords.length,
@@ -210,6 +217,8 @@ export const parseAndValidateFile = (buffer) => {
     period_start,
     period_end,
     totalCredits,
+    validInboundWeight,
+    validOutboundWeight,
   };
 };
 
@@ -314,7 +323,8 @@ export const getBatchRecords = async (reqUser, id) => {
 export const importFile = async (reqUser, fileBuffer, body) => {
   const factory_id = resolveFactoryId(reqUser, body.factory_id);
 
-  const { records, validCount, rejectedCount, period_start, period_end, totalCredits } =
+  const { records, validCount, rejectedCount, period_start, period_end, totalCredits,
+          validInboundWeight, validOutboundWeight } =
     parseAndValidateFile(fileBuffer);
 
   if (validCount === 0) {
@@ -324,6 +334,22 @@ export const importFile = async (reqUser, fileBuffer, body) => {
       code:   'no-valid-records',
       details: { validCount: 0, rejectedCount, errors: allErrors },
     });
+  }
+
+  if (validOutboundWeight > validInboundWeight) {
+    throw Object.assign(
+      new Error('Mass balance violation: outbound exceeds inbound.'),
+      {
+        status: 400,
+        code:   'mass-balance-exceeded',
+        details: {
+          inbound_kg:  validInboundWeight,
+          outbound_kg: validOutboundWeight,
+          deficit_kg:  parseFloat((validOutboundWeight - validInboundWeight).toFixed(4)),
+          message_he:  `חריגת מאזן מסה: יציאות (${validOutboundWeight.toFixed(2)} ק"ג) עולות על כניסות (${validInboundWeight.toFixed(2)} ק"ג). יש לתקן את הקובץ לפני הייבוא.`,
+        },
+      }
+    );
   }
 
   const batchData = {

@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { listDocuments, getDocumentById, insertDocument, updateDocumentById } from './queries.js';
 import { uploadFile, getSignedUrl, getSignedUrls } from '../../utils/storage.js';
 import { analyzeDocument as runOcr } from '../../services/ocr.js';
+import { DOCUMENT_SCHEMAS } from '../../services/documentSchemas.js';
 
 const ALLOWED_TYPES = ['delivery_note', 'invoice_in', 'invoice_out', 'lab_test', 'product_spec', 'retro_invoice', 'weighing_document', 'other'];
 const ALLOWED_MIME  = [
@@ -78,9 +79,9 @@ export const uploadDocument = async (reqUser, body, file) => {
 
   const ext         = path.extname(file.originalname) || '';
   const storagePath = `${factory_id}/${document_type}/${uuidv4()}${ext}`;
-  const file_url    = await uploadFile(file.buffer, file.mimetype, storagePath); // stores path, not URL
+  const file_url    = await uploadFile(file.buffer, file.mimetype, storagePath);
 
-  return insertDocument({
+  const doc = await insertDocument({
     factory_id,
     uploader_id:         reqUser.user_id,
     document_type,
@@ -91,6 +92,19 @@ export const uploadDocument = async (reqUser, body, file) => {
     capture_method:      capture_method      || null,
     location_status:     location_status     || null,
   });
+
+  // Run OCR for supported types — fields are transient hints, NOT stored in DB
+  const supportsOcr = OCR_MIME.includes(file.mimetype) && DOCUMENT_SCHEMAS[document_type];
+  if (supportsOcr) {
+    try {
+      const result = await runOcr(file.buffer, file.mimetype, document_type);
+      doc.ocr_fields = result.fields || null;
+    } catch {
+      doc.ocr_fields = null;
+    }
+  }
+
+  return doc;
 };
 
 export const approveDocument = async (reqUser, id, body) => {

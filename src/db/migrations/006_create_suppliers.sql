@@ -10,7 +10,8 @@ CREATE TABLE public.suppliers (
   allowed_material_types   text[]   NOT NULL DEFAULT '{}',
   allowed_material_sources text[]   NOT NULL DEFAULT '{}',
   erp_id                   text,
-  is_active                boolean  NOT NULL DEFAULT true
+  is_active                boolean  NOT NULL DEFAULT true,
+  created_by               uuid     REFERENCES public.users(id)
 );
 
 CREATE TRIGGER set_suppliers_updated_at

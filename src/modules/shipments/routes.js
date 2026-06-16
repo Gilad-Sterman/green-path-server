@@ -20,6 +20,9 @@ router.post('/', authenticate, anyStaff, shipmentsController.createShipment);
 router.post('/webhooks/hashavshevet', shipmentsController.receiveHashavshevetInvoice);
 
 // Status transitions — manager and internal_admin only
-router.patch('/:id/status', authenticate, managerOrAdmin, shipmentsController.updateShipmentStatus);
+router.patch('/:id/status',  authenticate, managerOrAdmin, shipmentsController.updateShipmentStatus);
+
+// Manual invoice entry — manager and internal_admin only
+router.patch('/:id/invoice', authenticate, managerOrAdmin, shipmentsController.updateManualInvoice);
 
 export default router;

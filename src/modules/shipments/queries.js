@@ -39,6 +39,10 @@ export const getShipmentById = async (id) => {
 export const getShipmentWithItems = async (id) => {
   const { rows } = await pool.query(
     `SELECT s.*, c.name AS customer_name,
+            (SELECT COALESCE(SUM(cl.eligible_output_kg), 0)
+             FROM credits_ledger cl
+             WHERE cl.source_id = s.id AND cl.source_type = 'operational_shipment'
+            ) AS total_credit,
             COALESCE(
               JSON_AGG(
                 JSON_BUILD_OBJECT(

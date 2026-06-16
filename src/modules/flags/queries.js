@@ -13,7 +13,18 @@ export const listFlags = async ({ factory_id, status, severity, entity_type, lim
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await pool.query(
-    `SELECT f.*, u.full_name AS resolved_by_name
+    `SELECT f.*,
+            u.full_name AS resolved_by_name,
+            CASE WHEN f.entity_type = 'intake' THEN (
+              SELECT eu.full_name FROM raw_material_intakes rmi
+              LEFT JOIN users eu ON eu.id = rmi.created_by
+              WHERE rmi.id = f.entity_id LIMIT 1
+            ) END AS entity_creator_name,
+            CASE WHEN f.entity_type = 'intake' THEN (
+              SELECT sup.name FROM raw_material_intakes rmi
+              LEFT JOIN suppliers sup ON sup.id = rmi.supplier_id
+              WHERE rmi.id = f.entity_id LIMIT 1
+            ) END AS entity_supplier_name
      FROM flags f
      LEFT JOIN users u ON u.id = f.resolved_by
      ${where}
@@ -28,7 +39,18 @@ export const listFlags = async ({ factory_id, status, severity, entity_type, lim
 
 export const getFlagById = async (id) => {
   const { rows } = await pool.query(
-    `SELECT f.*, u.full_name AS resolved_by_name
+    `SELECT f.*,
+            u.full_name AS resolved_by_name,
+            CASE WHEN f.entity_type = 'intake' THEN (
+              SELECT eu.full_name FROM raw_material_intakes rmi
+              LEFT JOIN users eu ON eu.id = rmi.created_by
+              WHERE rmi.id = f.entity_id LIMIT 1
+            ) END AS entity_creator_name,
+            CASE WHEN f.entity_type = 'intake' THEN (
+              SELECT sup.name FROM raw_material_intakes rmi
+              LEFT JOIN suppliers sup ON sup.id = rmi.supplier_id
+              WHERE rmi.id = f.entity_id LIMIT 1
+            ) END AS entity_supplier_name
      FROM flags f
      LEFT JOIN users u ON u.id = f.resolved_by
      WHERE f.id = $1`,
@@ -90,6 +112,18 @@ export const dismissFlagById = async (id, { resolution_note, resolved_by }) => {
     [resolution_note || null, resolved_by, id]
   );
   return rows[0] || null;
+};
+
+export const expireStaleFlags = async () => {
+  const { rows } = await pool.query(
+    `UPDATE flags
+     SET status     = 'expired',
+         updated_at = now()
+     WHERE status   = 'open'
+       AND created_at < now() - INTERVAL '72 hours'
+     RETURNING id`
+  );
+  return rows.length;
 };
 
 export const insertFlag = async ({ factory_id, entity_type, entity_id, reason, severity = 'medium' }) => {
