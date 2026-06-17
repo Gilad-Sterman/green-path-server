@@ -6,6 +6,7 @@ import {
 import { linkDocumentsToEntity } from '../documents/queries.js';
 import { insertFlag } from '../flags/queries.js';
 import { logAudit } from '../../services/audit.js';
+import { checkAndLogGeofence } from '../geofence/service.js';
 
 const MATERIAL_TYPES = ['PET', 'HDPE', 'PP', 'LDPE', 'PVC', 'PE', 'mixed', 'other'];
 const MATERIAL_SOURCES = ['post_consumer', 'post_industrial', 'commercial', 'municipal', 'other'];
@@ -51,7 +52,7 @@ export const createIntake = async (reqUser, body, meta = {}) => {
   const {
     supplier_id, material_type, is_recycled,
     net_weight_kg, intake_date, delivery_note_number,
-    data_entry_profile, location_status, notes,
+    data_entry_profile, notes, lat, lng,
   } = body;
 
   // Required field validation
@@ -90,6 +91,17 @@ export const createIntake = async (reqUser, body, meta = {}) => {
       'שימו לב: נמצאה קליטה דומה במערכת. יש לוודא שלא מדובר ברישום כפול.'
     );
   }
+  // Geofence check — non-blocking, always resolves
+  // The backend owns location_status determination; the client only supplies
+  // raw coordinates. If coords are missing or the check fails, 'unknown' is
+  // stored and the intake proceeds normally.
+  const location_status = await checkAndLogGeofence({
+    factory_id,
+    user_id: reqUser.user_id,
+    action: 'intake.create',
+    lat: lat != null ? parseFloat(lat) : null,
+    lng: lng != null ? parseFloat(lng) : null,
+  });
 
   const intake = await insertIntake({
     factory_id, supplier_id,
@@ -124,6 +136,17 @@ export const createIntake = async (reqUser, body, meta = {}) => {
       entity_id: intake.id,
       reason: 'ocr-field-edited',
       severity: 'low',
+    }).catch(() => { });
+  }
+
+  // ─── NEW: flag if user was outside the factory at intake time ─────────────
+  if (location_status === 'out_of_factory') {
+    insertFlag({
+      factory_id,
+      entity_type: 'intake',
+      entity_id:   intake.id,
+      reason:      'intake-outside-geofence',
+      severity:    'low',
     }).catch(() => { });
   }
 
