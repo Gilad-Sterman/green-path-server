@@ -60,6 +60,18 @@ export const downloadErrorReport = async (req, res, next) => {
   }
 };
 
+// POST /api/retro/preview
+export const previewRetroIntake = async (req, res, next) => {
+  try {
+    if (!req.file) return error(res, 'missing-file', 'No file uploaded. Please attach an XLSX or CSV file.', 400);
+    const result = retroService.previewFile(req.file.buffer);
+    return success(res, result);
+  } catch (err) {
+    if (err.status) return error(res, err.code || 'retro-error', err.message, err.status, err.details || {});
+    next(err);
+  }
+};
+
 // POST /api/retro
 export const importRetroIntake = async (req, res, next) => {
   try {

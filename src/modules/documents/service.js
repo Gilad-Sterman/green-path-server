@@ -68,7 +68,7 @@ export const uploadDocument = async (reqUser, body, file) => {
     throw badReq(`Unsupported file type. Allowed: ${ALLOWED_MIME.join(', ')}`);
   }
 
-  const { document_type, related_entity_type, related_entity_id, capture_method, location_status } = body;
+  const { document_type, related_entity_type, related_entity_id, capture_method, location_status, skip_ocr } = body;
   if (!document_type || !ALLOWED_TYPES.includes(document_type)) {
     throw badReq(`document_type must be one of: ${ALLOWED_TYPES.join(', ')}`);
   }
@@ -94,7 +94,7 @@ export const uploadDocument = async (reqUser, body, file) => {
   });
 
   // Run OCR for supported types — fields are transient hints, NOT stored in DB
-  const supportsOcr = OCR_MIME.includes(file.mimetype) && DOCUMENT_SCHEMAS[document_type];
+  const supportsOcr = skip_ocr !== 'true' && OCR_MIME.includes(file.mimetype) && DOCUMENT_SCHEMAS[document_type];
   if (supportsOcr) {
     try {
       const result = await runOcr(file.buffer, file.mimetype, document_type);

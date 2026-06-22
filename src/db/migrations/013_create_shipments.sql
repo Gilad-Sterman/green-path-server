@@ -19,7 +19,8 @@ CREATE TABLE public.shipments (
   invoice_number        text,
   invoice_date          date,
   invoice_file_url      text,
-  hashavshevet_synced_at timestamptz
+  hashavshevet_synced_at timestamptz,
+  upload_invoice_manual  boolean     NOT NULL DEFAULT false
 );
 
 CREATE TRIGGER set_shipments_updated_at

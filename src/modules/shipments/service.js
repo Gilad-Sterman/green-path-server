@@ -130,6 +130,27 @@ export const createShipment = async (reqUser, body, meta = {}) => {
 
   await linkDocumentsToEntity(document_ids, 'shipment', result.shipment.id, factory_id);
 
+  // Lab test mismatch detection — non-blocking flag
+  try {
+    const labPct = typeof body.lab_test_recycled_percent === 'number'
+      ? body.lab_test_recycled_percent
+      : null;
+    if (labPct !== null) {
+      const hasMismatch = resolvedItems.some(
+        (item) => Math.abs(labPct - item.eligible_percent) > 5
+      );
+      if (hasMismatch) {
+        await insertFlag({
+          factory_id,
+          entity_type: 'shipment',
+          entity_id:   result.shipment.id,
+          reason:      'lab_test_mismatch',
+          severity:    'high',
+        });
+      }
+    }
+  } catch (_) { /* flag failure must never block shipment creation */ }
+
   logAudit({
     action:      'shipment.created',
     entity_type: 'shipment',
@@ -184,14 +205,21 @@ export const updateManualInvoice = async (reqUser, id, body) => {
   if (shipment.status === 'cancelled') throw badReq('לא ניתן להוסיף חשבונית למשלוח שבוטל.');
   if (shipment.invoice_status === 'received') throw badReq('חשבונית כבר התקבלה עבור משלוח זה.');
 
-  const { invoice_number, invoice_date } = body;
+  const { invoice_number, invoice_date, invoice_document_id } = body;
   if (!invoice_number?.trim()) throw badReq('invoice_number is required.');
 
-  return updateShipmentById(id, {
-    invoice_status: 'received',
-    invoice_number: invoice_number.trim(),
-    invoice_date:   invoice_date || null,
+  const updated = await updateShipmentById(id, {
+    invoice_status:        'received',
+    invoice_number:        invoice_number.trim(),
+    invoice_date:          invoice_date || null,
+    upload_invoice_manual: true,
   });
+
+  if (invoice_document_id) {
+    await linkDocumentsToEntity([invoice_document_id], 'shipment', id, shipment.factory_id);
+  }
+
+  return updated;
 };
 
 export const updateShipmentStatus = async (reqUser, id, body, meta = {}) => {

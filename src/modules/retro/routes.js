@@ -24,7 +24,10 @@ router.get('/:id/records', authenticate, managerOrAdmin, retroController.getRetr
 // Download error report for a batch
 router.get('/:id/error-report', authenticate, managerOrAdmin, retroController.downloadErrorReport);
 
-// Import: upload + validate + create batch
+// Preview: parse + validate only — no DB writes
+router.post('/preview', authenticate, managerOrAdmin, upload.single('file'), retroController.previewRetroIntake);
+
+// Import: upload + validate + create batch (requires invoice_doc_id + lab_test_doc_id)
 router.post('/', authenticate, managerOrAdmin, upload.single('file'), retroController.importRetroIntake);
 
 export default router;

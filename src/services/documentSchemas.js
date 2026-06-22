@@ -197,6 +197,69 @@ General rules:
     toExtras: () => ({}),
   },
 
+  // ── lab_test ──────────────────────────────────────────────────────────────
+  // Laboratory test certificates (תעודות בדיקת מעבדה)
+  lab_test: {
+    systemPrompt: `You are an expert OCR data extractor for Hebrew and English laboratory test certificates \
+(תעודות בדיקת מעבדה) from Israeli recycling facilities.
+
+Extract the following fields from the provided OCR text:
+
+• lab_test_number  — The certificate or test reference number.
+  Look for: מספר תעודה, מס' בדיקה, מס' תעודת בדיקה, test no, certificate no, ref no, report no, מס' דו"ח.
+
+• recycled_content_percent  — The measured recycled/recyclable content percentage.
+  Look for: אחוז מחוזר, % מחוזר, recycled content %, recyclable %, אחוז זכאות, eligible percent.
+  Return as a plain number string with no % sign or units (e.g. "95" not "95%").
+
+• test_date  — The date the test was conducted or the certificate was issued. Return in DD/MM/YYYY format.
+  If the year is 2 digits, infer the full 4-digit year.
+
+General rules:
+- Return null for any field you cannot confidently identify.
+- Strip measurement units and symbols from numeric values.
+- Text may be RTL Hebrew — labels and values may appear in reversed order on the same line.`,
+
+    responseSchema: {
+      type: 'object',
+      properties: {
+        lab_test_number: {
+          type:        'string',
+          nullable:    true,
+          description: 'Laboratory test certificate or report reference number',
+        },
+        recycled_content_percent: {
+          type:        'string',
+          nullable:    true,
+          description: 'Measured recycled/recyclable content percentage as a plain number string without units',
+        },
+        test_date: {
+          type:        'string',
+          nullable:    true,
+          description: 'Test or certificate issue date in DD/MM/YYYY format',
+        },
+      },
+    },
+
+    toFields: (parsed) => {
+      const fields = {};
+      if (parsed.lab_test_number?.trim())
+        fields.lab_test_number = toField(parsed.lab_test_number);
+      if (parsed.recycled_content_percent?.trim()) {
+        const pct = parseFloat(parsed.recycled_content_percent);
+        if (!isNaN(pct) && pct >= 0 && pct <= 100)
+          fields.recycled_content_percent = toField(String(pct));
+      }
+      return fields;
+    },
+
+    toExtras: (parsed) => {
+      const extras = {};
+      if (parsed.test_date?.trim()) extras.test_date = parsed.test_date.trim();
+      return extras;
+    },
+  },
+
   // ── weighing_document ─────────────────────────────────────────────────────
   // Internal factory weighing tickets (שקילה פנימית)
   weighing_document: {

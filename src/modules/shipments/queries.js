@@ -90,6 +90,7 @@ export const updateShipmentById = async (id, fields) => {
   if (fields.invoice_date        !== undefined) { setClauses.push(`invoice_date        = $${idx++}`); params.push(fields.invoice_date);        }
   if (fields.invoice_file_url    !== undefined) { setClauses.push(`invoice_file_url    = $${idx++}`); params.push(fields.invoice_file_url);    }
   if (fields.hashavshevet_synced_at !== undefined) { setClauses.push(`hashavshevet_synced_at = $${idx++}`); params.push(fields.hashavshevet_synced_at); }
+  if (fields.upload_invoice_manual  !== undefined) { setClauses.push(`upload_invoice_manual  = $${idx++}`); params.push(fields.upload_invoice_manual);  }
 
   if (!setClauses.length) return null;
 

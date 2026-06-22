@@ -5,6 +5,7 @@ import {
   getRetroCertificationRecords,
   executeImportTransaction,
 } from './queries.js';
+import { linkDocumentsToEntity } from '../documents/queries.js';
 
 const RECORD_TYPES           = ['inbound', 'outbound'];
 const MATERIAL_TYPES         = ['PE', 'PP', 'PET', 'Other'];
@@ -297,6 +298,36 @@ export const buildErrorReport = async (batchId, factoryId) => {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 };
 
+export const previewFile = (fileBuffer) => {
+  const {
+    records, validCount, rejectedCount, totalCredits,
+    validInboundWeight, validOutboundWeight,
+  } = parseAndValidateFile(fileBuffer);
+
+  if (validOutboundWeight > validInboundWeight) {
+    throw Object.assign(
+      new Error('Mass balance violation: outbound exceeds inbound.'),
+      {
+        status: 400,
+        code:   'mass-balance-exceeded',
+        details: {
+          inbound_kg:  validInboundWeight,
+          outbound_kg: validOutboundWeight,
+          deficit_kg:  parseFloat((validOutboundWeight - validInboundWeight).toFixed(4)),
+          message_he:  `חריגת מאזן מסה: יציאות (${validOutboundWeight.toFixed(2)} ק"ג) עולות על כניסות (${validInboundWeight.toFixed(2)} ק"ג). יש לתקן את הקובץ לפני הייבוא.`,
+        },
+      }
+    );
+  }
+
+  const flaggedCount = records.filter(r => r.status === 'flagged').length;
+  const allErrors    = records
+    .filter(r => r.status === 'rejected' || r.status === 'flagged')
+    .flatMap(r => r.errors);
+
+  return { validCount, rejectedCount, flaggedCount, totalCredits, errors: allErrors };
+};
+
 export const listBatches = async (reqUser, query) => {
   const factory_id = resolveFactoryId(reqUser, query.factory_id);
   return listRetroIntakes({
@@ -322,6 +353,13 @@ export const getBatchRecords = async (reqUser, id) => {
 
 export const importFile = async (reqUser, fileBuffer, body) => {
   const factory_id = resolveFactoryId(reqUser, body.factory_id);
+
+  let invoice_doc_ids  = [];
+  let lab_test_doc_ids = [];
+  try { invoice_doc_ids  = JSON.parse(body.invoice_doc_ids  || '[]'); } catch { invoice_doc_ids  = []; }
+  try { lab_test_doc_ids = JSON.parse(body.lab_test_doc_ids || '[]'); } catch { lab_test_doc_ids = []; }
+  if (!invoice_doc_ids.length)  throw badReq('חשבונית חובה — יש להעלות לפחות קובץ חשבונית אחד לפני השלמת הייבוא.');
+  if (!lab_test_doc_ids.length) throw badReq('בדיקת מעבדה חובה — יש להעלות לפחות קובץ בדיקת מעבדה אחד לפני השלמת הייבוא.');
 
   const { records, validCount, rejectedCount, period_start, period_end, totalCredits,
           validInboundWeight, validOutboundWeight } =
@@ -365,6 +403,8 @@ export const importFile = async (reqUser, fileBuffer, body) => {
     records,
     totalCredits,
   );
+
+  await linkDocumentsToEntity([...invoice_doc_ids, ...lab_test_doc_ids], 'retro_intake', batch.id, factory_id);
 
   const allErrors = records
     .filter(r => r.status === 'rejected' || r.status === 'flagged')

@@ -204,6 +204,11 @@ export const addWeighing = async (reqUser, intake_id, body, meta = {}) => {
 
   await updateIntakeInternalWeight(intake_id, measured_weight);
 
+  const extra_document_ids = Array.isArray(body.extra_document_ids) ? body.extra_document_ids : [];
+  if (extra_document_ids.length > 0) {
+    await linkDocumentsToEntity(extra_document_ids, 'intake', intake_id, intake.factory_id);
+  }
+
   const originalWeight = parseFloat(intake.net_weight_kg);
   const discrepancyPct = Math.abs(measured_weight - originalWeight) / originalWeight * 100;
   if (discrepancyPct >= 5) {
