@@ -63,7 +63,7 @@ export const sendOtp = async (phone_number) => {
     const twilio = (await import('twilio')).default;
     const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
     await client.messages.create({
-      body: `Your GreenPath code is: ${code}. Valid for ${OTP_EXPIRY_MINUTES} minutes.`,
+      body: `קוד האימות שלך ב-GreenPath: ${code}. בתוקף ל-${OTP_EXPIRY_MINUTES} דקות.`,
       from: process.env.TWILIO_PHONE_NUMBER,
       to: phone_number,
     });
