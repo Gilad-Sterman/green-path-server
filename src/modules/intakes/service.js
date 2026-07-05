@@ -249,24 +249,8 @@ export const updateIntake = async (reqUser, id, body, meta = {}) => {
 
   const allowed = {};
 
-  if (body.material_type !== undefined) {
-    if (!MATERIAL_TYPES.includes(body.material_type)) throw badReq(`Invalid material_type.`);
-    allowed.material_type = body.material_type;
-  }
-  if (body.is_recycled !== undefined) {
-    if (typeof body.is_recycled !== 'boolean') throw badReq('is_recycled must be a boolean.');
-    allowed.is_recycled = body.is_recycled;
-    allowed.eligible_input_percent = body.is_recycled ? 100 : 0;
-  }
-  if (body.net_weight_kg !== undefined) {
-    const w = parseFloat(body.net_weight_kg);
-    if (isNaN(w) || w <= 0) throw badReq('net_weight_kg must be a positive number.');
-    allowed.net_weight_kg = w;
-  }
-  if (body.eligible_input_percent !== undefined) {
-    const p = parseFloat(body.eligible_input_percent);
-    if (isNaN(p) || p < 0 || p > 100) throw badReq('eligible_input_percent must be between 0 and 100.');
-    allowed.eligible_input_percent = p;
+  if (body.material_type !== undefined || body.is_recycled !== undefined || body.net_weight_kg !== undefined || body.eligible_input_percent !== undefined) {
+    throw badReq('לא ניתן לערוך שדות ליבה בקליטה שאושרה. שינוי משקל מתבצע דרך שקילה פנימית בלבד.');
   }
   if (body.intake_date !== undefined) {
     const today = new Date().toISOString().split('T')[0];
