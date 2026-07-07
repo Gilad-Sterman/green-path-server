@@ -7,13 +7,6 @@ import {
 } from './queries.js';
 import { linkDocumentsToEntity } from '../documents/queries.js';
 
-const RECORD_TYPES           = ['inbound', 'outbound'];
-const MATERIAL_TYPES         = ['PE', 'PP', 'PET', 'Other'];
-const MATERIAL_CLASSIFICATIONS = ['recycled', 'virgin'];
-const REQUIRED_COLUMNS = [
-  'record_type', 'date', 'material_type', 'material_classification',
-  'party_name', 'invoice_number', 'delivery_note_number', 'weight',
-];
 
 const notFound = (msg = 'Retro intake not found.') => Object.assign(new Error(msg), { status: 404 });
 const badReq   = (msg)                              => Object.assign(new Error(msg), { status: 400 });
@@ -31,137 +24,136 @@ const resolveFactoryIdOptional = (reqUser, queryFactoryId) => {
   return reqUser.factory_id;
 };
 
-const parseDate = (raw) => {
-  if (raw === null || raw === undefined || raw === '') return null;
-  let d;
-  if (raw instanceof Date) {
-    d = raw;
-  } else {
-    d = new Date(raw);
+const parseILDate = (raw) => {
+  if (!raw && raw !== 0) return null;
+  const str = String(raw).trim();
+
+  // Excel serial date number (XLSX stores dates as integers, e.g. 45747 = 31/3/2025)
+  if (/^\d{5}$/.test(str)) {
+    const d = new Date(Math.round((parseInt(str, 10) - 25569) * 86400 * 1000));
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString().split('T')[0];
   }
-  if (isNaN(d.getTime())) return null;
-  return d.toISOString().split('T')[0];
+
+  // DD/MM/YYYY or D/M/YYYY or DD/MM/YY (text format used in CSV exports)
+  const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (!m) return null;
+  const year = m[3].length === 2 ? `20${m[3]}` : m[3];
+  const iso  = `${year}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return isNaN(new Date(iso).getTime()) ? null : iso;
 };
 
-export const parseAndValidateFile = (buffer) => {
+const inferMaterialType = (desc) => {
+  const s = String(desc || '').toUpperCase();
+  if (/ABS|TPO|PS\b|PVC\b|EPS\b/.test(s)) return 'Other';
+  if (/\bPET\b/.test(s))                   return 'PET';
+  if (/PP\/PE|PE\/PP|MIX/.test(s))         return 'PP/PE';
+  if (/HDPE|LDPE|LLDPE|MDPE/.test(s))      return 'PE';
+  if (/CPP|HPP/.test(s))                   return 'PP';
+  if (/\bPE\b/.test(s))                    return 'PE';
+  if (/\bPP\b/.test(s))                    return 'PP';
+  return 'Other';
+};
+
+export const parseHashavshevetCSV = (buffer) => {
   let workbook;
   try {
-    workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+    // XLSX/XLS binary files start with PK (ZIP) or D0CF magic bytes; everything else is CSV text
+    const isBinary = buffer.length >= 2 && (
+      (buffer[0] === 0x50 && buffer[1] === 0x4B) ||   // PK — ZIP/XLSX
+      (buffer[0] === 0xD0 && buffer[1] === 0xCF)       // D0CF — XLS
+    );
+    workbook = isBinary
+      ? XLSX.read(buffer, { type: 'buffer', cellDates: false })
+      : XLSX.read(buffer.toString('utf8'), { type: 'string', cellDates: false });
   } catch {
     throw badReq('Could not parse file. Please upload a valid XLSX or CSV file.');
   }
 
   const sheetName = workbook.SheetNames[0];
-  if (!sheetName) throw badReq('File is empty. Please upload a file with data.');
+  if (!sheetName) throw badReq('הקובץ ריק.');
 
   const sheet = workbook.Sheets[sheetName];
   const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
-  if (rows.length < 2) throw badReq('File is empty or contains no data rows.');
+  if (rows.length < 2) throw badReq('הקובץ ריק או אינו מכיל נתונים.');
 
-  const headers = rows[0].map(h => String(h).toLowerCase().trim().replace(/\s+/g, '_'));
-
-  const missingCols = REQUIRED_COLUMNS.filter(col => !headers.includes(col));
-  if (missingCols.length > 0) {
-    throw badReq(`File is missing required columns: ${missingCols.join(', ')}`);
-  }
-
-  const dataRows = rows.slice(1);
   const records   = [];
   const seenKeys  = new Set();
   const today     = new Date().toISOString().split('T')[0];
+  let currentSupplier = null;
+  let currentItem     = null;
 
-  for (let i = 0; i < dataRows.length; i++) {
-    const row    = dataRows[i];
-    const rowNum = i + 2;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const c   = (idx) => String(row[idx] ?? '').trim();
+    const rowNum = i + 1;
 
-    if (row.every(cell => cell === '' || cell === null || cell === undefined)) continue;
+    if (row.every(cell => String(cell ?? '').trim() === '')) continue;
+    if (c(0))                                continue;
+    if (c(1) === 'סוג אסמכתא')              continue;
+    if (c(4) === 'טון')                      continue;
+    if (/^\d+$/.test(c(1)) && !c(2))         continue;
 
-    const get = (col) => {
-      const idx = headers.indexOf(col);
-      return idx >= 0 ? row[idx] : undefined;
-    };
+    const docType = c(1);
 
-    const errors = [];
-
-    const record_type            = String(get('record_type') ?? '').trim().toLowerCase();
-    const material_type          = String(get('material_type') ?? '').trim();
-    const material_classification = String(get('material_classification') ?? '').trim().toLowerCase();
-    const party_name             = String(get('party_name') ?? '').trim();
-    const invoice_number         = String(get('invoice_number') ?? '').trim();
-    const delivery_note_number   = String(get('delivery_note_number') ?? '').trim();
-    const lab_test_reference     = String(get('lab_test_reference') ?? '').trim() || null;
-    const rawWeight              = get('weight');
-    const rawDate                = get('date');
-    const rawEligPct             = get('product_eligible_percent');
-
-    if (!RECORD_TYPES.includes(record_type)) {
-      errors.push({ field: 'record_type', message: `שורה ${rowNum}: סוג רשומה לא תקין. יש לבחור inbound או outbound.` });
+    if (docType && !c(2) && !/^\d+$/.test(docType)) {
+      currentSupplier = docType;
+      currentItem     = null;
+      continue;
     }
-    if (!MATERIAL_TYPES.includes(material_type)) {
-      errors.push({ field: 'material_type', message: `שורה ${rowNum}: סוג חומר לא תקין. יש לבחור מתוך: ${MATERIAL_TYPES.join(', ')}.` });
+
+    if (!docType && c(2) && c(3)) {
+      currentItem = {
+        sku:           c(2),
+        description:   c(3),
+        pcr:           c(6).toUpperCase() === 'Y',
+        material_type: inferMaterialType(c(3)),
+      };
+      continue;
     }
-    if (!MATERIAL_CLASSIFICATIONS.includes(material_classification)) {
-      errors.push({ field: 'material_classification', message: `שורה ${rowNum}: סיווג חומר לא תקין. יש להזין recycled או virgin.` });
+
+    if (docType !== 'חשבונית רכש' && docType !== 'זיכוי רכש') continue;
+    if (!currentSupplier || !currentItem) continue;
+
+    const errors        = [];
+    const invoiceNumber = c(2);
+    const rawDate       = c(3);
+    const rawWeight     = c(4);
+
+    const parsedDate = parseILDate(rawDate);
+    if (!parsedDate) {
+      errors.push({ field: 'date', message: `שורה ${rowNum}: תאריך לא תקין: "${rawDate}"` });
+    } else if (parsedDate > today) {
+      errors.push({ field: 'date', message: `שורה ${rowNum}: לא ניתן להזין תאריך עתידי.` });
     }
-    if (!party_name)           errors.push({ field: 'party_name',           message: `שורה ${rowNum}: חסר שם ספק/לקוח.` });
-    if (!invoice_number)       errors.push({ field: 'invoice_number',       message: `שורה ${rowNum}: חסר מספר חשבונית.` });
-    if (!delivery_note_number) errors.push({ field: 'delivery_note_number', message: `שורה ${rowNum}: חסר מספר תעודת משלוח.` });
+
+    if (!invoiceNumber) {
+      errors.push({ field: 'invoice_number', message: `שורה ${rowNum}: חסר מספר חשבונית.` });
+    }
 
     let weight = null;
-    if (rawWeight === '' || rawWeight === null || rawWeight === undefined) {
-      errors.push({ field: 'weight', message: `שורה ${rowNum}: חסר משקל.` });
+    const weightNum = parseFloat(String(rawWeight).replace(/,/g, ''));
+    if (isNaN(weightNum) || weightNum === 0) {
+      errors.push({ field: 'weight', message: `שורה ${rowNum}: משקל לא תקין.` });
     } else {
-      weight = parseFloat(rawWeight);
-      if (isNaN(weight) || weight <= 0) {
-        errors.push({ field: 'weight', message: `שורה ${rowNum}: משקל חייב להיות מספר גדול מ-0.` });
-        weight = null;
-      }
+      weight = parseFloat((weightNum * 1000).toFixed(4));
     }
 
-    let parsedDate = null;
-    if (rawDate === '' || rawDate === null || rawDate === undefined) {
-      errors.push({ field: 'date', message: `שורה ${rowNum}: חסר תאריך.` });
-    } else {
-      parsedDate = parseDate(rawDate);
-      if (!parsedDate) {
-        errors.push({ field: 'date', message: `שורה ${rowNum}: תאריך לא תקין.` });
-      } else if (parsedDate > today) {
-        errors.push({ field: 'date', message: `שורה ${rowNum}: לא ניתן להזין תאריך עתידי.` });
-        parsedDate = null;
-      }
-    }
-
-    let eligiblePercent    = null;
-    let calculated_credits = 0;
-
-    if (record_type === 'outbound') {
-      if (rawEligPct === '' || rawEligPct === null || rawEligPct === undefined) {
-        errors.push({ field: 'product_eligible_percent', message: `שורה ${rowNum}: יש להזין אחוז זכאות לתוצ"ג.` });
-      } else {
-        eligiblePercent = parseFloat(rawEligPct);
-        if (isNaN(eligiblePercent) || eligiblePercent < 0 || eligiblePercent > 100) {
-          errors.push({ field: 'product_eligible_percent', message: `שורה ${rowNum}: אחוז זכאות חייב להיות בין 0 ל-100.` });
-          eligiblePercent = null;
-        }
-      }
-    } else if (record_type === 'inbound') {
-      eligiblePercent = material_classification === 'recycled' ? 100 : 0;
-    }
+    const material_classification = currentItem.pcr ? 'recycled' : 'virgin';
+    const eligible_percent        = currentItem.pcr ? 100 : 0;
 
     let isDupInFile = false;
     if (errors.length === 0) {
       const dupKey = [
-        record_type,
         parsedDate,
-        (invoice_number || '').toLowerCase(),
-        (delivery_note_number || '').toLowerCase(),
-        (party_name || '').toLowerCase(),
-        String(weight ?? 0),
+        (invoiceNumber || '').toLowerCase(),
+        (currentSupplier || '').toLowerCase(),
+        String(weight),
       ].join('|');
       if (seenKeys.has(dupKey)) {
         isDupInFile = true;
-        errors.push({ field: 'duplicate', message: `שורה ${rowNum}: ייתכן שמדובר ברשומה כפולה (הופיעה כבר בקובץ זה).` });
+        errors.push({ field: 'duplicate', message: `שורה ${rowNum}: ייתכן שמדובר ברשומה כפולה.` });
       } else {
         seenKeys.add(dupKey);
       }
@@ -169,29 +161,25 @@ export const parseAndValidateFile = (buffer) => {
 
     const status = errors.length > 0 ? (isDupInFile ? 'flagged' : 'rejected') : 'imported';
 
-    if (status === 'imported' && record_type === 'outbound' && eligiblePercent !== null && weight !== null) {
-      calculated_credits = parseFloat((weight * (eligiblePercent / 100)).toFixed(4));
-    }
-
     records.push({
-      record_type:            RECORD_TYPES.includes(record_type) ? record_type : null,
-      date:                   parsedDate,
-      material_type:          MATERIAL_TYPES.includes(material_type) ? material_type : null,
-      material_classification: MATERIAL_CLASSIFICATIONS.includes(material_classification) ? material_classification : null,
-      party_name:             party_name || null,
-      invoice_number:         invoice_number || null,
-      delivery_note_number:   delivery_note_number || null,
-      lab_test_reference,
+      record_type:             'inbound',
+      date:                    parsedDate,
+      material_type:           currentItem.material_type,
+      material_classification,
+      party_name:              currentSupplier,
+      invoice_number:          invoiceNumber || null,
+      delivery_note_number:    currentItem.sku || null,
+      lab_test_reference:      null,
       weight,
-      eligible_percent:       eligiblePercent,
-      calculated_credits,
+      eligible_percent,
+      calculated_credits:      0,
       status,
       errors,
-      row_index: rowNum,
+      row_index:               rowNum,
     });
   }
 
-  if (records.length === 0) throw badReq('הקובץ ריק. יש להעלות קובץ עם נתונים.');
+  if (records.length === 0) throw badReq('לא נמצאו רשומות בקובץ. יש לוודא שהקובץ הוא דוח קניות תקין מחשבשבת.');
 
   const validRecords    = records.filter(r => r.status !== 'rejected');
   const rejectedRecords = records.filter(r => r.status === 'rejected');
@@ -201,15 +189,8 @@ export const parseAndValidateFile = (buffer) => {
   const period_end   = validDates[validDates.length - 1] || null;
 
   const totalCredits = validRecords
-    .filter(r => r.record_type === 'outbound')
-    .reduce((sum, r) => sum + (r.calculated_credits || 0), 0);
-
-  const validInboundWeight  = validRecords
-    .filter(r => r.record_type === 'inbound')
-    .reduce((s, r) => s + (r.weight || 0), 0);
-  const validOutboundWeight = validRecords
-    .filter(r => r.record_type === 'outbound')
-    .reduce((s, r) => s + (r.weight || 0), 0);
+    .filter(r => r.material_classification === 'recycled')
+    .reduce((sum, r) => sum + (r.weight || 0), 0);
 
   return {
     records,
@@ -218,8 +199,6 @@ export const parseAndValidateFile = (buffer) => {
     period_start,
     period_end,
     totalCredits,
-    validInboundWeight,
-    validOutboundWeight,
   };
 };
 
@@ -299,26 +278,7 @@ export const buildErrorReport = async (batchId, factoryId) => {
 };
 
 export const previewFile = (fileBuffer) => {
-  const {
-    records, validCount, rejectedCount, totalCredits,
-    validInboundWeight, validOutboundWeight,
-  } = parseAndValidateFile(fileBuffer);
-
-  if (validOutboundWeight > validInboundWeight) {
-    throw Object.assign(
-      new Error('Mass balance violation: outbound exceeds inbound.'),
-      {
-        status: 400,
-        code:   'mass-balance-exceeded',
-        details: {
-          inbound_kg:  validInboundWeight,
-          outbound_kg: validOutboundWeight,
-          deficit_kg:  parseFloat((validOutboundWeight - validInboundWeight).toFixed(4)),
-          message_he:  `חריגת מאזן מסה: יציאות (${validOutboundWeight.toFixed(2)} ק"ג) עולות על כניסות (${validInboundWeight.toFixed(2)} ק"ג). יש לתקן את הקובץ לפני הייבוא.`,
-        },
-      }
-    );
-  }
+  const { records, validCount, rejectedCount, totalCredits } = parseHashavshevetCSV(fileBuffer);
 
   const flaggedCount = records.filter(r => r.status === 'flagged').length;
   const allErrors    = records
@@ -361,9 +321,8 @@ export const importFile = async (reqUser, fileBuffer, body) => {
   if (!invoice_doc_ids.length)  throw badReq('חשבונית חובה — יש להעלות לפחות קובץ חשבונית אחד לפני השלמת הייבוא.');
   if (!lab_test_doc_ids.length) throw badReq('בדיקת מעבדה חובה — יש להעלות לפחות קובץ בדיקת מעבדה אחד לפני השלמת הייבוא.');
 
-  const { records, validCount, rejectedCount, period_start, period_end, totalCredits,
-          validInboundWeight, validOutboundWeight } =
-    parseAndValidateFile(fileBuffer);
+  const { records, validCount, rejectedCount, period_start, period_end, totalCredits } =
+    parseHashavshevetCSV(fileBuffer);
 
   if (validCount === 0) {
     const allErrors = records.flatMap(r => r.errors);
@@ -372,22 +331,6 @@ export const importFile = async (reqUser, fileBuffer, body) => {
       code:   'no-valid-records',
       details: { validCount: 0, rejectedCount, errors: allErrors },
     });
-  }
-
-  if (validOutboundWeight > validInboundWeight) {
-    throw Object.assign(
-      new Error('Mass balance violation: outbound exceeds inbound.'),
-      {
-        status: 400,
-        code:   'mass-balance-exceeded',
-        details: {
-          inbound_kg:  validInboundWeight,
-          outbound_kg: validOutboundWeight,
-          deficit_kg:  parseFloat((validOutboundWeight - validInboundWeight).toFixed(4)),
-          message_he:  `חריגת מאזן מסה: יציאות (${validOutboundWeight.toFixed(2)} ק"ג) עולות על כניסות (${validInboundWeight.toFixed(2)} ק"ג). יש לתקן את הקובץ לפני הייבוא.`,
-        },
-      }
-    );
   }
 
   const batchData = {
