@@ -9,7 +9,7 @@ import { linkDocumentsToEntity } from '../documents/queries.js';
 
 
 const notFound = (msg = 'Retro intake not found.') => Object.assign(new Error(msg), { status: 404 });
-const badReq   = (msg)                              => Object.assign(new Error(msg), { status: 400 });
+const badReq = (msg) => Object.assign(new Error(msg), { status: 400 });
 
 const resolveFactoryId = (reqUser, bodyFactoryId) => {
   if (reqUser.role === 'internal_admin') {
@@ -39,19 +39,19 @@ const parseILDate = (raw) => {
   const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (!m) return null;
   const year = m[3].length === 2 ? `20${m[3]}` : m[3];
-  const iso  = `${year}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  const iso = `${year}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
   return isNaN(new Date(iso).getTime()) ? null : iso;
 };
 
 const inferMaterialType = (desc) => {
   const s = String(desc || '').toUpperCase();
   if (/ABS|TPO|PS\b|PVC\b|EPS\b/.test(s)) return 'Other';
-  if (/\bPET\b/.test(s))                   return 'PET';
-  if (/PP\/PE|PE\/PP|MIX/.test(s))         return 'PP/PE';
-  if (/HDPE|LDPE|LLDPE|MDPE/.test(s))      return 'PE';
-  if (/CPP|HPP/.test(s))                   return 'PP';
-  if (/\bPE\b/.test(s))                    return 'PE';
-  if (/\bPP\b/.test(s))                    return 'PP';
+  if (/\bPET\b/.test(s)) return 'PET';
+  if (/PP\/PE|PE\/PP|MIX/.test(s)) return 'PP/PE';
+  if (/HDPE|LDPE|LLDPE|MDPE/.test(s)) return 'PE';
+  if (/CPP|HPP/.test(s)) return 'PP';
+  if (/\bPE\b/.test(s)) return 'PE';
+  if (/\bPP\b/.test(s)) return 'PP';
   return 'Other';
 };
 
@@ -74,40 +74,40 @@ export const parseHashavshevetCSV = (buffer) => {
   if (!sheetName) throw badReq('הקובץ ריק.');
 
   const sheet = workbook.Sheets[sheetName];
-  const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
   if (rows.length < 2) throw badReq('הקובץ ריק או אינו מכיל נתונים.');
 
-  const records   = [];
-  const seenKeys  = new Set();
-  const today     = new Date().toISOString().split('T')[0];
+  const records = [];
+  const seenKeys = new Set();
+  const today = new Date().toISOString().split('T')[0];
   let currentSupplier = null;
-  let currentItem     = null;
+  let currentItem = null;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const c   = (idx) => String(row[idx] ?? '').trim();
+    const c = (idx) => String(row[idx] ?? '').trim();
     const rowNum = i + 1;
 
     if (row.every(cell => String(cell ?? '').trim() === '')) continue;
-    if (c(0))                                continue;
-    if (c(1) === 'סוג אסמכתא')              continue;
-    if (c(4) === 'טון')                      continue;
-    if (/^\d+$/.test(c(1)) && !c(2))         continue;
+    if (c(0)) continue;
+    if (c(1) === 'סוג אסמכתא') continue;
+    if (c(4) === 'טון') continue;
+    if (/^\d+$/.test(c(1)) && !c(2)) continue;
 
     const docType = c(1);
 
     if (docType && !c(2) && !/^\d+$/.test(docType)) {
       currentSupplier = docType;
-      currentItem     = null;
+      currentItem = null;
       continue;
     }
 
     if (!docType && c(2) && c(3)) {
       currentItem = {
-        sku:           c(2),
-        description:   c(3),
-        pcr:           c(6).toUpperCase() === 'Y',
+        sku: c(2),
+        description: c(3),
+        pcr: c(6).toUpperCase() === 'Y',
         material_type: inferMaterialType(c(3)),
       };
       continue;
@@ -116,10 +116,10 @@ export const parseHashavshevetCSV = (buffer) => {
     if (docType !== 'חשבונית רכש' && docType !== 'זיכוי רכש') continue;
     if (!currentSupplier || !currentItem) continue;
 
-    const errors        = [];
+    const errors = [];
     const invoiceNumber = c(2);
-    const rawDate       = c(3);
-    const rawWeight     = c(4);
+    const rawDate = c(3);
+    const rawWeight = c(4);
 
     const parsedDate = parseILDate(rawDate);
     if (!parsedDate) {
@@ -141,7 +141,7 @@ export const parseHashavshevetCSV = (buffer) => {
     }
 
     const material_classification = currentItem.pcr ? 'recycled' : 'virgin';
-    const eligible_percent        = currentItem.pcr ? 100 : 0;
+    const eligible_percent = currentItem.pcr ? 100 : 0;
 
     let isDupInFile = false;
     if (errors.length === 0) {
@@ -162,31 +162,31 @@ export const parseHashavshevetCSV = (buffer) => {
     const status = errors.length > 0 ? (isDupInFile ? 'flagged' : 'rejected') : 'imported';
 
     records.push({
-      record_type:             'inbound',
-      date:                    parsedDate,
-      material_type:           currentItem.material_type,
+      record_type: 'inbound',
+      date: parsedDate,
+      material_type: currentItem.material_type,
       material_classification,
-      party_name:              currentSupplier,
-      invoice_number:          invoiceNumber || null,
-      delivery_note_number:    currentItem.sku || null,
-      lab_test_reference:      null,
+      party_name: currentSupplier,
+      invoice_number: invoiceNumber || null,
+      delivery_note_number: currentItem.sku || null,
+      lab_test_reference: null,
       weight,
       eligible_percent,
-      calculated_credits:      0,
+      calculated_credits: 0,
       status,
       errors,
-      row_index:               rowNum,
+      row_index: rowNum,
     });
   }
 
   if (records.length === 0) throw badReq('לא נמצאו רשומות בקובץ. יש לוודא שהקובץ הוא דוח קניות תקין מחשבשבת.');
 
-  const validRecords    = records.filter(r => r.status !== 'rejected');
+  const validRecords = records.filter(r => r.status !== 'rejected');
   const rejectedRecords = records.filter(r => r.status === 'rejected');
 
   const validDates = validRecords.map(r => r.date).filter(Boolean).sort();
   const period_start = validDates[0] || null;
-  const period_end   = validDates[validDates.length - 1] || null;
+  const period_end = validDates[validDates.length - 1] || null;
 
   const totalCredits = validRecords
     .filter(r => r.material_classification === 'recycled')
@@ -194,7 +194,7 @@ export const parseHashavshevetCSV = (buffer) => {
 
   return {
     records,
-    validCount:    validRecords.length,
+    validCount: validRecords.length,
     rejectedCount: rejectedRecords.length,
     period_start,
     period_end,
@@ -213,7 +213,7 @@ export const buildTemplate = () => {
   ];
   const examples = [
     ['outbound', '2023-06-15', 'PET', 'recycled', 'לקוח לדוגמה', 'INV-2023-001', 'DN-2023-001', 500, 80, 'LAB-2023-001', 'דוגמה - יציאה עם קרדיטים'],
-    ['inbound',  '2023-06-20', 'PET', 'recycled', 'ספק לדוגמה',  'INV-2023-002', 'DN-2023-002', 300, '',  '',             'דוגמה - כניסה (ללא קרדיטים)'],
+    ['inbound', '2023-06-20', 'PET', 'recycled', 'ספק לדוגמה', 'INV-2023-002', 'DN-2023-002', 300, '', '', 'דוגמה - כניסה (ללא קרדיטים)'],
   ];
   const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
   ws['!cols'] = headers.map(() => ({ wch: 26 }));
@@ -222,20 +222,20 @@ export const buildTemplate = () => {
   // ── Sheet 2: Hebrew instructions ─────────────────────────────────────────
   const guide = [
     ['עמודה', 'שם עברי', 'תיאור', 'נדרש', 'ערכים מקובלים'],
-    ['record_type',             'סוג רשומה',         'האם זה חומר שנכנס למפעל או יצא ממנו',                        'כן',      'inbound (כניסה) | outbound (יציאה)'],
-    ['date',                   'תאריך',              'תאריך החשבונית. לא ניתן להזין תאריך עתידי',                  'כן',      'YYYY-MM-DD  (לדוג׳: 2023-06-15)'],
-    ['material_type',          'סוג חומר',           'סוג הפלסטיק',                                                'כן',      'PET | HDPE | PP | LDPE | PS | PVC | other'],
-    ['material_classification', 'סיווג חומר',        'האם החומר ממוחזר, בתולי, או מעורב',                          'כן',      'recycled | virgin | mixed'],
-    ['party_name',             'ספק / לקוח',         'שם הספק (כניסה) או שם הלקוח (יציאה)',                        'כן',      'טקסט חופשי'],
-    ['invoice_number',         'מספר חשבונית',       'מספר חשבונית המס',                                            'כן',      'טקסט חופשי'],
-    ['delivery_note_number',   'תעודת משלוח',        'מספר תעודת המשלוח',                                           'כן',      'טקסט חופשי'],
-    ['weight',                 'משקל (ק"ג)',          'משקל החומר בקילוגרמים. חייב להיות מספר חיובי',               'כן',      'מספר חיובי (לדוג׳: 500)'],
-    ['product_eligible_percent', 'אחוז זכאות לקרדיט', 'אחוז מהמשקל הזכאי לקרדיט. חובה עבור יציאה בלבד',          'רק ליציאה', '0 עד 100 (לדוג׳: 80)'],
-    ['lab_test_reference',     'אסמכתא בדיקת מעבדה', 'מזהה בדיקת מעבדה אם קיים',                                  'לא',      'טקסט חופשי'],
-    ['notes',                  'הערות',              'הערות חופשיות',                                               'לא',      'טקסט חופשי'],
+    ['record_type', 'סוג רשומה', 'האם זה חומר שנכנס למפעל או יצא ממנו', 'כן', 'inbound (כניסה) | outbound (יציאה)'],
+    ['date', 'תאריך', 'תאריך החשבונית. לא ניתן להזין תאריך עתידי', 'כן', 'YYYY-MM-DD  (לדוג׳: 2023-06-15)'],
+    ['material_type', 'סוג חומר', 'סוג הפלסטיק', 'כן', 'PET | HDPE | PP | LDPE | PS | PVC | other'],
+    ['material_classification', 'סיווג חומר', 'האם החומר ממוחזר, בתולי, או מעורב', 'כן', 'recycled | virgin | mixed'],
+    ['party_name', 'ספק / לקוח', 'שם הספק (כניסה) או שם הלקוח (יציאה)', 'כן', 'טקסט חופשי'],
+    ['invoice_number', 'מספר חשבונית', 'מספר חשבונית המס', 'כן', 'טקסט חופשי'],
+    ['delivery_note_number', 'תעודת משלוח', 'מספר תעודת המשלוח', 'כן', 'טקסט חופשי'],
+    ['weight', 'משקל (ק"ג)', 'משקל החומר בקילוגרמים. חייב להיות מספר חיובי', 'כן', 'מספר חיובי (לדוג׳: 500)'],
+    ['product_eligible_percent', 'אחוז זכאות לקרדיט', 'אחוז מהמשקל הזכאי לקרדיט. חובה עבור יציאה בלבד', 'רק ליציאה', '0 עד 100 (לדוג׳: 80)'],
+    ['lab_test_reference', 'אסמכתא בדיקת מעבדה', 'מזהה בדיקת מעבדה אם קיים', 'לא', 'טקסט חופשי'],
+    ['notes', 'הערות', 'הערות חופשיות', 'לא', 'טקסט חופשי'],
     [],
     ['חישוב קרדיטים:', '', 'קרדיטים = משקל × (אחוז זכאות ÷ 100)  |  רשומות כניסה (inbound) אינן מייצרות קרדיטים'],
-    ['כפילויות:',      '', 'רשומה שמופיעה פעמיים באותו קובץ תסומן כחשד לכפילות ותיקלט בסטטוס "מסומן" ללא קרדיטים נוספים'],
+    ['כפילויות:', '', 'רשומה שמופיעה פעמיים באותו קובץ תסומן כחשד לכפילות ותיקלט בסטטוס "מסומן" ללא קרדיטים נוספים'],
   ];
   const wsGuide = XLSX.utils.aoa_to_sheet(guide);
   wsGuide['!cols'] = [{ wch: 26 }, { wch: 22 }, { wch: 55 }, { wch: 14 }, { wch: 50 }];
@@ -249,7 +249,7 @@ export const buildErrorReport = async (batchId, factoryId) => {
   if (!batch) throw notFound();
 
   const allRecords = await getRetroCertificationRecords(batchId, factoryId);
-  const rejected   = allRecords.filter(r => r.status === 'rejected');
+  const rejected = allRecords.filter(r => r.status === 'rejected');
 
   const headerRow = [
     'row_index', 'record_type', 'date', 'material_type', 'material_classification',
@@ -281,7 +281,7 @@ export const previewFile = (fileBuffer) => {
   const { records, validCount, rejectedCount, totalCredits } = parseHashavshevetCSV(fileBuffer);
 
   const flaggedCount = records.filter(r => r.status === 'flagged').length;
-  const allErrors    = records
+  const allErrors = records
     .filter(r => r.status === 'rejected' || r.status === 'flagged')
     .flatMap(r => r.errors);
 
@@ -292,7 +292,7 @@ export const listBatches = async (reqUser, query) => {
   const factory_id = resolveFactoryId(reqUser, query.factory_id);
   return listRetroIntakes({
     factory_id,
-    limit:  Math.min(parseInt(query.limit)  || 50, 200),
+    limit: Math.min(parseInt(query.limit) || 50, 200),
     offset: parseInt(query.offset) || 0,
   });
 };
@@ -311,15 +311,60 @@ export const getBatchRecords = async (reqUser, id) => {
   return getRetroCertificationRecords(id, factory_id);
 };
 
+// export const importFile = async (reqUser, fileBuffer, body) => {
+//   const factory_id = resolveFactoryId(reqUser, body.factory_id);
+
+//   let invoice_doc_ids = [];
+//   let lab_test_doc_ids = [];
+//   try { invoice_doc_ids = JSON.parse(body.invoice_doc_ids || '[]'); } catch { invoice_doc_ids = []; }
+//   try { lab_test_doc_ids = JSON.parse(body.lab_test_doc_ids || '[]'); } catch { lab_test_doc_ids = []; }
+//   if (!invoice_doc_ids.length) throw badReq('חשבונית חובה — יש להעלות לפחות קובץ חשבונית אחד לפני השלמת הייבוא.');
+//   if (!lab_test_doc_ids.length) throw badReq('בדיקת מעבדה חובה — יש להעלות לפחות קובץ בדיקת מעבדה אחד לפני השלמת הייבוא.');
+
+//   const { records, validCount, rejectedCount, period_start, period_end, totalCredits } =
+//     parseHashavshevetCSV(fileBuffer);
+
+//   if (validCount === 0) {
+//     const allErrors = records.flatMap(r => r.errors);
+//     throw Object.assign(new Error('No valid records found. All rows were rejected.'), {
+//       status: 400,
+//       code: 'no-valid-records',
+//       details: { validCount: 0, rejectedCount, errors: allErrors },
+//     });
+//   }
+
+//   const batchData = {
+//     period_start: body.period_start || period_start,
+//     period_end: body.period_end || period_end,
+//     notes: body.notes || null,
+//   };
+
+//   const batch = await executeImportTransaction(
+//     factory_id,
+//     reqUser.user_id,
+//     batchData,
+//     records,
+//     totalCredits,
+//   );
+
+//   await linkDocumentsToEntity([...invoice_doc_ids, ...lab_test_doc_ids], 'retro_intake', batch.id, factory_id);
+
+//   const allErrors = records
+//     .filter(r => r.status === 'rejected' || r.status === 'flagged')
+//     .flatMap(r => r.errors);
+
+//   const flaggedCount = records.filter(r => r.status === 'flagged').length;
+
+//   return { batch, validCount, rejectedCount, flaggedCount, totalCredits, errors: allErrors };
+// };
+
 export const importFile = async (reqUser, fileBuffer, body) => {
   const factory_id = resolveFactoryId(reqUser, body.factory_id);
 
-  let invoice_doc_ids  = [];
+  let invoice_doc_ids = [];
   let lab_test_doc_ids = [];
-  try { invoice_doc_ids  = JSON.parse(body.invoice_doc_ids  || '[]'); } catch { invoice_doc_ids  = []; }
+  try { invoice_doc_ids = JSON.parse(body.invoice_doc_ids || '[]'); } catch { invoice_doc_ids = []; }
   try { lab_test_doc_ids = JSON.parse(body.lab_test_doc_ids || '[]'); } catch { lab_test_doc_ids = []; }
-  if (!invoice_doc_ids.length)  throw badReq('חשבונית חובה — יש להעלות לפחות קובץ חשבונית אחד לפני השלמת הייבוא.');
-  if (!lab_test_doc_ids.length) throw badReq('בדיקת מעבדה חובה — יש להעלות לפחות קובץ בדיקת מעבדה אחד לפני השלמת הייבוא.');
 
   const { records, validCount, rejectedCount, period_start, period_end, totalCredits } =
     parseHashavshevetCSV(fileBuffer);
@@ -328,15 +373,15 @@ export const importFile = async (reqUser, fileBuffer, body) => {
     const allErrors = records.flatMap(r => r.errors);
     throw Object.assign(new Error('No valid records found. All rows were rejected.'), {
       status: 400,
-      code:   'no-valid-records',
+      code: 'no-valid-records',
       details: { validCount: 0, rejectedCount, errors: allErrors },
     });
   }
 
   const batchData = {
     period_start: body.period_start || period_start,
-    period_end:   body.period_end   || period_end,
-    notes:        body.notes        || null,
+    period_end: body.period_end || period_end,
+    notes: body.notes || null,
   };
 
   const batch = await executeImportTransaction(
@@ -347,7 +392,10 @@ export const importFile = async (reqUser, fileBuffer, body) => {
     totalCredits,
   );
 
-  await linkDocumentsToEntity([...invoice_doc_ids, ...lab_test_doc_ids], 'retro_intake', batch.id, factory_id);
+  const allDocIds = [...invoice_doc_ids, ...lab_test_doc_ids];
+  if (allDocIds.length) {
+    await linkDocumentsToEntity(allDocIds, 'retro_intake', batch.id, factory_id);
+  }
 
   const allErrors = records
     .filter(r => r.status === 'rejected' || r.status === 'flagged')
